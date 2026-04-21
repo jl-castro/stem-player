@@ -37,20 +37,42 @@ export class PlayerPageComponent {
   );
   readonly seekMax = computed(() => Math.max(1, this.playback.state().durationMs));
 
+  readonly hasInactiveStems = computed(() => {
+    const lp = this.playback.loadedProject();
+    if (!lp) {
+      return false;
+    }
+    return lp.tracks.some((t) => !this.playback.hasStemAudio(t.id));
+  });
+
+  /** Combina carga de ruta + estados de playback para la UI (badge / `data-status`). */
+  readonly combinedStatus = computed(() => {
+    if (this.pageLoading()) {
+      return 'loading';
+    }
+    const st = this.playback.state();
+    if (st.status === 'ready' && this.playback.loadSummary()) {
+      return 'ready-partial';
+    }
+    return st.status;
+  });
+
   readonly statusLabel = computed(() => {
     if (this.pageLoading()) {
-      return 'Cargando…';
+      return 'Cargando proyecto…';
     }
-    const s = this.playback.state().status;
+    const key = this.combinedStatus();
     const map: Record<string, string> = {
+      loading: 'Cargando proyecto…',
       idle: 'Inactivo',
       ready: 'Listo',
+      'ready-partial': 'Listo (parcial)',
       playing: 'Reproduciendo',
       paused: 'Pausa',
       stopped: 'Detenido',
       error: 'Error',
     };
-    return map[s] ?? s;
+    return map[key] ?? String(key);
   });
 
   constructor() {
@@ -59,6 +81,7 @@ export class PlayerPageComponent {
         tap(() => {
           this.pageLoading.set(true);
           this.pageError.set(null);
+          this.playback.clearLoadSummary();
         }),
         switchMap((pm) => {
           const projectId = pm.get('projectId');

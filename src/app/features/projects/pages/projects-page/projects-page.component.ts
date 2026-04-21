@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
   viewChild,
@@ -31,6 +32,18 @@ export class ProjectsPageComponent {
   readonly selectedFiles = signal<File[]>([]);
   readonly createError = signal<string | null>(null);
   readonly isCreating = signal(false);
+  readonly createPhase = signal<'idle' | 'decoding' | 'persisting'>('idle');
+
+  readonly createPhaseMessage = computed(() => {
+    switch (this.createPhase()) {
+      case 'decoding':
+        return 'Analizando archivos y midiendo duración…';
+      case 'persisting':
+        return 'Guardando audio en el dispositivo…';
+      default:
+        return '';
+    }
+  });
 
   readonly renamingId = signal<string | null>(null);
   readonly renameDraft = signal('');
@@ -73,11 +86,13 @@ export class ProjectsPageComponent {
 
   async onCreateProject(): Promise<void> {
     this.createError.set(null);
+    this.createPhase.set('decoding');
     this.isCreating.set(true);
     try {
       await this.importService.createProjectFromImportedFiles(
         this.newProjectName(),
         this.selectedFiles(),
+        (phase) => this.createPhase.set(phase),
       );
       this.newProjectName.set('');
       this.clearFileSelection();
@@ -86,6 +101,7 @@ export class ProjectsPageComponent {
       this.createError.set(e instanceof Error ? e.message : String(e));
     } finally {
       this.isCreating.set(false);
+      this.createPhase.set('idle');
     }
   }
 
@@ -116,6 +132,9 @@ export class ProjectsPageComponent {
     if (!name) {
       return;
     }
+    if (this.isCreating()) {
+      return;
+    }
     try {
       await this.storage.renameProject(projectId, name);
       this.cancelRename();
@@ -126,6 +145,9 @@ export class ProjectsPageComponent {
   }
 
   async onDeleteProject(project: Project): Promise<void> {
+    if (this.isCreating()) {
+      return;
+    }
     const ok = window.confirm(`¿Eliminar el proyecto "${project.name}"? Esta acción no se puede deshacer.`);
     if (!ok) {
       return;

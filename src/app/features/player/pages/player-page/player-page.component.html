@@ -6,9 +6,12 @@
     } @else {
       <h1 class="project-title">Reproductor</h1>
     }
-    <p class="status-line" [attr.data-status]="playback.state().status">
+    <p class="status-line" [attr.data-status]="combinedStatus()">
       <span class="status-badge">{{ statusLabel() }}</span>
     </p>
+    @if (!pageLoading() && hasInactiveStems()) {
+      <p class="hint">Las pistas marcadas «Sin audio» no tienen archivo en este dispositivo; el resto se reproduce sincronizado.</p>
+    }
   </header>
 
   @if (pageError(); as err) {
@@ -17,6 +20,10 @@
 
   @if (playback.state().errorMessage && !pageError()) {
     <div class="banner banner--error" role="alert">{{ playback.state().errorMessage }}</div>
+  }
+
+  @if (playback.loadSummary(); as hint) {
+    <div class="banner banner--info" role="status">{{ hint }}</div>
   }
 
   <section class="track-list" aria-label="Pistas">
@@ -38,13 +45,17 @@
           <div class="track-names">
             <span class="track-display">{{ track.displayName }}</span>
             <span class="track-file">{{ track.fileName }}</span>
+            @if (!playback.hasStemAudio(track.id)) {
+              <span class="track-badge">Sin audio</span>
+            }
           </div>
           <div class="track-controls">
             <button
               type="button"
               class="btn btn--mute"
               [attr.aria-pressed]="track.muted"
-              [disabled]="!playback.hasStemAudio(track.id)"
+              [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
+              [title]="!playback.hasStemAudio(track.id) ? 'Sin archivo en almacén local' : 'Mute'"
               (click)="playback.toggleTrackMute(track.id)"
             >
               M
@@ -53,7 +64,8 @@
               type="button"
               class="btn btn--solo"
               [attr.aria-pressed]="track.solo"
-              [disabled]="!playback.hasStemAudio(track.id)"
+              [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
+              [title]="!playback.hasStemAudio(track.id) ? 'Sin archivo en almacén local' : 'Solo'"
               (click)="playback.toggleTrackSolo(track.id)"
             >
               S
@@ -67,7 +79,7 @@
                 max="1"
                 step="0.01"
                 [value]="track.volume"
-                [disabled]="!playback.hasStemAudio(track.id)"
+                [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
                 [style.--track-accent]="track.color"
                 (input)="
                   playback.setTrackVolume(track.id, $any($event.target).valueAsNumber)
@@ -79,7 +91,10 @@
       </article>
     } @empty {
       @if (!pageLoading()) {
-        <p class="empty-hint">Sin pistas en este proyecto o aún no cargado.</p>
+        <p class="empty-hint">
+          No hay pistas en este proyecto, o todavía se está cargando. Si acabas de abrir el enlace, espera un momento;
+          si el proyecto está vacío, vuelve a Proyectos e importa archivos.
+        </p>
       }
     }
   </section>

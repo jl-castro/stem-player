@@ -1,57 +1,30 @@
 import { Injectable, inject } from '@angular/core';
 
 import type { Project, StemTrack } from '../../../core/models';
+import {
+  basenameWithoutExt,
+  decodeBlobDurationMs,
+  guessMimeFromFileName,
+  isAllowedAudioFile,
+  stemColorForIndex,
+} from '../../../core/utils/audio-import';
 import { ProjectStorageService } from './project-storage.service';
 
-const STEM_PALETTE = [
-  '#ef4444',
-  '#f97316',
-  '#eab308',
-  '#22c55e',
-  '#14b8a6',
-  '#3b82f6',
-  '#8b5cf6',
-  '#ec4899',
-];
-
-function pickStemColor(index: number): string {
-  return STEM_PALETTE[index % STEM_PALETTE.length] ?? '#6b7280';
-}
-
-function basenameWithoutExt(fileName: string): string {
-  const base = fileName.replace(/^.*[/\\]/, '');
-  const without = base.replace(/\.[^.]+$/i, '');
-  return without.trim() || base.trim() || 'Pista';
-}
-
-function guessMimeFromFileName(fileName: string): string {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith('.mp3')) {
-    return 'audio/mpeg';
-  }
-  if (lower.endsWith('.wav')) {
-    return 'audio/wav';
-  }
-  if (lower.endsWith('.m4a')) {
-    return 'audio/mp4';
-  }
-  return 'application/octet-stream';
-}
-
-function isAllowedAudioFile(file: File): boolean {
-  const ext = file.name.split('.').pop()?.toLowerCase();
-  return ext === 'mp3' || ext === 'wav' || ext === 'm4a';
-}
+export type ProjectImportPhase = 'decoding' | 'persisting';
 
 @Injectable({ providedIn: 'root' })
 export class ProjectImportService {
   private readonly storage = inject(ProjectStorageService);
 
   /**
-   * Crea proyecto + stems: guarda blobs, luego `saveProject`.
-   * Si falla `saveProject`, elimina los assets creados en este intento.
+   * Crea proyecto + stems: mide duración real (Web Audio), guarda blobs, luego `saveProject`.
+   * Si falla tras guardar blobs, elimina los assets creados en este intento.
    */
-  async createProjectFromImportedFiles(name: string, files: readonly File[]): Promise<Project> {
+  async createProjectFromImportedFiles(
+    name: string,
+    files: readonly File[],
+    onProgress?: (phase: ProjectImportPhase) => void,
+  ): Promise<Project> {
     const trimmed = name.trim();
     if (!trimmed) {
       throw new Error('El nombre del proyecto es obligatorio.');
@@ -67,14 +40,38 @@ export class ProjectImportService {
       );
     }
 
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) {
+      throw new Error('Tu navegador no permite Web Audio; no se puede medir la duración de los archivos.');
+    }
+
     const projectId = crypto.randomUUID();
     const now = new Date().toISOString();
     const keysCollected: string[] = [];
     const tracks: StemTrack[] = [];
 
+    let ctx: AudioContext | null = null;
+
     try {
+      ctx = new Ctx();
+      onProgress?.('decoding');
+
+      const decoded: { file: File; durationMs: number; order: number }[] = [];
       let order = 0;
       for (const file of files) {
+        let durationMs: number;
+        try {
+          durationMs = await decodeBlobDurationMs(file, ctx);
+        } catch (e) {
+          const detail = e instanceof Error ? e.message : String(e);
+          throw new Error(`No se pudo leer la duración de "${file.name}". ${detail}`);
+        }
+        decoded.push({ file, durationMs, order });
+        order += 1;
+      }
+
+      onProgress?.('persisting');
+      for (const { file, durationMs, order } of decoded) {
         const trackId = crypto.randomUUID();
         const key = await this.storage.saveTrackAsset(projectId, trackId, file);
         keysCollected.push(key);
@@ -82,9 +79,9 @@ export class ProjectImportService {
           id: trackId,
           fileName: file.name,
           displayName: basenameWithoutExt(file.name),
-          color: pickStemColor(order),
+          color: stemColorForIndex(order),
           order,
-          durationMs: 0,
+          durationMs,
           volume: 1,
           muted: false,
           solo: false,
@@ -92,7 +89,6 @@ export class ProjectImportService {
           sizeBytes: file.size,
           storedAssetKey: key,
         });
-        order += 1;
       }
 
       const project: Project = {
@@ -114,6 +110,14 @@ export class ProjectImportService {
         }
       }
       throw e;
+    } finally {
+      if (ctx) {
+        try {
+          await ctx.close();
+        } catch {
+          /* ignore */
+        }
+      }
     }
   }
 }

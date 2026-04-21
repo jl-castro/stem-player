@@ -42,6 +42,11 @@
   color: #111827;
 }
 
+.status-line[data-status='loading'] .status-badge {
+  background: #e0e7ff;
+  color: #312e81;
+}
+
 .status-line[data-status='playing'] .status-badge {
   background: #bbf7d0;
 }
@@ -51,8 +56,26 @@
   background: #fde68a;
 }
 
+.status-line[data-status='ready-partial'] .status-badge {
+  background: #cffafe;
+  color: #155e75;
+}
+
 .status-line[data-status='error'] .status-badge {
   background: #fecaca;
+}
+
+.hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: #4b5563;
+  line-height: 1.35;
+}
+
+.banner--info {
+  background: #eff6ff;
+  color: #1e3a8a;
+  border: 1px solid #bfdbfe;
 }
 
 .banner {
@@ -127,6 +150,19 @@
   font-size: 0.75rem;
   color: #6b7280;
   word-break: break-all;
+}
+
+.track-badge {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 .track-controls {

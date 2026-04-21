@@ -1,7 +1,10 @@
 <div class="projects-page">
   <header class="page-header">
     <h1>Proyectos</h1>
-    <p class="lede">Crea un proyecto con stems locales y ábrelo en el reproductor.</p>
+    <p class="lede">
+      Crea un proyecto con stems locales (MP3, WAV o M4A) y ábrelo en el reproductor. Los archivos se guardan solo en
+      este dispositivo.
+    </p>
   </header>
 
   @if (listError(); as err) {
@@ -41,6 +44,10 @@
       <p class="file-summary">{{ selectedFiles().length }} archivo(s) seleccionado(s)</p>
     }
 
+    @if (isCreating() && createPhaseMessage()) {
+      <p class="create-status" role="status">{{ createPhaseMessage() }}</p>
+    }
+
     @if (createError(); as cErr) {
       <div class="banner banner--error" role="alert">{{ cErr }}</div>
     }
@@ -52,7 +59,13 @@
       (click)="onCreateProject()"
     >
       @if (isCreating()) {
-        Guardando…
+        @if (createPhase() === 'decoding') {
+          Analizando…
+        } @else if (createPhase() === 'persisting') {
+          Guardando…
+        } @else {
+          Procesando…
+        }
       } @else {
         Crear proyecto
       }
@@ -63,7 +76,7 @@
     <h2 id="list-heading" class="section-title">Tus proyectos</h2>
 
     @if (projects().length === 0) {
-      <p class="empty">No hay proyectos todavía. Crea uno arriba.</p>
+      <p class="empty">Aún no hay proyectos. Usa el formulario de arriba para importar stems y guardar el primer ensayo.</p>
     }
 
     <ul class="project-list">
@@ -77,9 +90,15 @@
                 [value]="renameDraft()"
                 (input)="onRenameDraftInput($event)"
                 (keydown.enter)="confirmRename(project.id)"
+                [disabled]="isCreating()"
               />
               <div class="rename-actions">
-                <button type="button" class="btn btn--small" (click)="confirmRename(project.id)">
+                <button
+                  type="button"
+                  class="btn btn--small"
+                  [disabled]="isCreating()"
+                  (click)="confirmRename(project.id)"
+                >
                   Guardar
                 </button>
                 <button type="button" class="btn btn--small btn--ghost" (click)="cancelRename()">
@@ -94,8 +113,10 @@
             </div>
             <div class="project-actions">
               <a class="btn btn--primary btn--link" [routerLink]="['/player', project.id]">Abrir</a>
-              <button type="button" class="btn" (click)="startRename(project)">Renombrar</button>
-              <button type="button" class="btn btn--danger" (click)="onDeleteProject(project)">
+              <button type="button" class="btn" [disabled]="isCreating()" (click)="startRename(project)">
+                Renombrar
+              </button>
+              <button type="button" class="btn btn--danger" [disabled]="isCreating()" (click)="onDeleteProject(project)">
                 Eliminar
               </button>
             </div>

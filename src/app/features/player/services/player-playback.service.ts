@@ -23,6 +23,9 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
   /** Copia para UI (se renueva con `cloneProject` tras cada cambio de mezcla). */
   readonly loadedProject = signal<Project | null>(null);
 
+  /** Avisos no bloqueantes tras una carga parcial (p. ej. pistas sin blob). */
+  readonly loadSummary = signal<string | null>(null);
+
   /** Copia mutable del proyecto cargado (volúmenes, mute, solo) alineada con el motor. */
   private project: Project | null = null;
 
@@ -36,11 +39,13 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     this.stopRafLoop();
     this.engine.reset();
     this.loadedProject.set(null);
+    this.loadSummary.set(null);
 
     const fail = (message: string): void => {
       this.project = null;
       this.loadedStemIds.clear();
       this.loadedProject.set(null);
+      this.loadSummary.set(null);
       this.state.set({
         ...createInitialPlayerState(),
         projectId: project.id,
@@ -58,6 +63,14 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     }
 
     const copy = cloneProject(project);
+    const tracksWithKey = copy.tracks.filter((t) => !!t.storedAssetKey);
+    if (copy.tracks.length > 0 && tracksWithKey.length === 0) {
+      fail(
+        'Este proyecto no tiene archivos de audio guardados. En Proyectos, importa al menos un MP3, WAV o M4A para cada stem.',
+      );
+      return;
+    }
+
     const buffers = new Map<string, AudioBuffer>();
     const issues: string[] = [];
 
@@ -74,7 +87,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
         continue;
       }
       if (!blob) {
-        issues.push(`${track.displayName}: archivo no encontrado`);
+        issues.push(`${track.displayName}: archivo no encontrado en IndexedDB`);
         continue;
       }
       try {
@@ -87,8 +100,18 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     }
 
     if (buffers.size === 0) {
-      const hint = issues.length ? ` (${issues.join('; ')})` : '';
-      fail(`No hay stems reproducibles${hint}`);
+      const detail = issues.length ? ` Detalle: ${issues.join('; ')}` : '';
+      const allBlobMissing =
+        tracksWithKey.length > 0 &&
+        issues.length === tracksWithKey.length &&
+        issues.every((msg) => msg.includes('no encontrado'));
+      if (allBlobMissing) {
+        fail(
+          `No se encontraron los archivos de audio en el almacén local del navegador. Puede que se hayan borrado los datos del sitio o el proyecto esté corrupto.${detail}`,
+        );
+      } else {
+        fail(`No se pudo preparar ningún stem para reproducir.${detail}`);
+      }
       return;
     }
 
@@ -127,6 +150,20 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       canPlay: true,
       errorMessage: null,
     });
+
+    const summaryParts: string[] = [];
+    const missingKey = copy.tracks.filter((t) => !t.storedAssetKey);
+    if (missingKey.length > 0) {
+      summaryParts.push(
+        `${missingKey.length} pista(s) sin archivo guardado: no se reproducen. Importa stems desde Proyectos si falta audio.`,
+      );
+    }
+    if (issues.length > 0 && buffers.size < tracksWithKey.length) {
+      summaryParts.push(
+        'Algunas pistas con archivo guardado no se pudieron cargar (revisa el mensaje de error o reimporta).',
+      );
+    }
+    this.loadSummary.set(summaryParts.length > 0 ? summaryParts.join(' ') : null);
   }
 
   play(): void {
@@ -237,6 +274,11 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
 
   hasStemAudio(trackId: string): boolean {
     return this.loadedStemIds.has(trackId);
+  }
+
+  /** Limpia avisos de carga parcial (p. ej. al cambiar de proyecto en la ruta). */
+  clearLoadSummary(): void {
+    this.loadSummary.set(null);
   }
 
   private syncLoadedProjectView(): void {
