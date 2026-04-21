@@ -1,4 +1,134 @@
-<section class="player-page" aria-label="Player">
-  <h1>Player</h1>
-  <p>Synced stem playback controls will go here.</p>
-</section>
+<div class="player-page">
+  <header class="player-header">
+    <a routerLink="/projects" class="back-link">← Proyectos</a>
+    @if (playback.loadedProject(); as proj) {
+      <h1 class="project-title">{{ proj.name }}</h1>
+    } @else {
+      <h1 class="project-title">Reproductor</h1>
+    }
+    <p class="status-line" [attr.data-status]="playback.state().status">
+      <span class="status-badge">{{ statusLabel() }}</span>
+    </p>
+  </header>
+
+  @if (pageError(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  @if (playback.state().errorMessage && !pageError()) {
+    <div class="banner banner--error" role="alert">{{ playback.state().errorMessage }}</div>
+  }
+
+  <section class="track-list" aria-label="Pistas">
+    @for (track of playback.loadedProject()?.tracks ?? []; track track.id) {
+      <article
+        class="track-row"
+        [ngClass]="{
+          'track-row--muted': track.muted,
+          'track-row--solo': track.solo,
+          'track-row--inactive': !playback.hasStemAudio(track.id),
+        }"
+      >
+        <div
+          class="track-color"
+          [style.backgroundColor]="track.color"
+          aria-hidden="true"
+        ></div>
+        <div class="track-body">
+          <div class="track-names">
+            <span class="track-display">{{ track.displayName }}</span>
+            <span class="track-file">{{ track.fileName }}</span>
+          </div>
+          <div class="track-controls">
+            <button
+              type="button"
+              class="btn btn--mute"
+              [attr.aria-pressed]="track.muted"
+              [disabled]="!playback.hasStemAudio(track.id)"
+              (click)="playback.toggleTrackMute(track.id)"
+            >
+              M
+            </button>
+            <button
+              type="button"
+              class="btn btn--solo"
+              [attr.aria-pressed]="track.solo"
+              [disabled]="!playback.hasStemAudio(track.id)"
+              (click)="playback.toggleTrackSolo(track.id)"
+            >
+              S
+            </button>
+            <label class="vol-label">
+              <span class="sr-only">Volumen {{ track.displayName }}</span>
+              <input
+                type="range"
+                class="vol-slider"
+                min="0"
+                max="1"
+                step="0.01"
+                [value]="track.volume"
+                [disabled]="!playback.hasStemAudio(track.id)"
+                [style.--track-accent]="track.color"
+                (input)="
+                  playback.setTrackVolume(track.id, $any($event.target).valueAsNumber)
+                "
+              />
+            </label>
+          </div>
+        </div>
+      </article>
+    } @empty {
+      @if (!pageLoading()) {
+        <p class="empty-hint">Sin pistas en este proyecto o aún no cargado.</p>
+      }
+    }
+  </section>
+
+  <footer class="transport-bar" aria-label="Controles de transporte">
+    <div class="transport-times">
+      <span>{{ seekThumbMs() | formatMs }}</span>
+      <span class="sep">/</span>
+      <span>{{ playback.state().durationMs | formatMs }}</span>
+    </div>
+
+    <input
+      type="range"
+      class="seek"
+      min="0"
+      [max]="seekMax()"
+      [value]="seekThumbMs()"
+      [disabled]="playback.state().durationMs <= 0 || playDisabled()"
+      (pointerdown)="onSeekPointerDown($event)"
+      (input)="onSeekInput($event)"
+      (pointerup)="onSeekPointerUp()"
+      (pointercancel)="onSeekPointerUp()"
+    />
+
+    <div class="transport-row">
+      <button type="button" class="btn btn--primary" [disabled]="playDisabled()" (click)="togglePlayPause()">
+        @if (playback.state().status === 'playing') {
+          Pausa
+        } @else {
+          Play
+        }
+      </button>
+      <button type="button" class="btn" [disabled]="playDisabled()" (click)="playback.stop()">Stop</button>
+      <button type="button" class="btn" [disabled]="playDisabled()" (click)="playback.restart()">Restart</button>
+    </div>
+
+    <label class="master-row">
+      <span>Master</span>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        [value]="playback.state().masterVolume"
+        [disabled]="playDisabled()"
+        (input)="
+          playback.setMasterVolume($any($event.target).valueAsNumber)
+        "
+      />
+    </label>
+  </footer>
+</div>

@@ -10,7 +10,7 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'player',
+    path: 'player/:projectId',
     loadComponent: () =>
       import('./features/player/pages/player-page/player-page.component').then(
         (m) => m.PlayerPageComponent,

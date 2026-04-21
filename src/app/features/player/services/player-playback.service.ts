@@ -20,6 +20,9 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
 
   readonly state = signal<PlayerState>(createInitialPlayerState());
 
+  /** Copia para UI (se renueva con `cloneProject` tras cada cambio de mezcla). */
+  readonly loadedProject = signal<Project | null>(null);
+
   /** Copia mutable del proyecto cargado (volúmenes, mute, solo) alineada con el motor. */
   private project: Project | null = null;
 
@@ -32,10 +35,12 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
   async loadProject(project: Readonly<Project>): Promise<void> {
     this.stopRafLoop();
     this.engine.reset();
+    this.loadedProject.set(null);
 
     const fail = (message: string): void => {
       this.project = null;
       this.loadedStemIds.clear();
+      this.loadedProject.set(null);
       this.state.set({
         ...createInitialPlayerState(),
         projectId: project.id,
@@ -110,6 +115,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
 
     this.engine.applyMasterLinearGain(1);
     this.project = copy;
+    this.syncLoadedProjectView();
     this.state.set({
       ...createInitialPlayerState(),
       projectId: project.id,
@@ -204,6 +210,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       t.volume = v;
     }
     this.engine.applyStemLinearGain(trackId, v);
+    this.syncLoadedProjectView();
   }
 
   toggleTrackMute(trackId: string): void {
@@ -213,6 +220,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     }
     t.muted = !t.muted;
     this.engine.applyStemMute(trackId, t.muted);
+    this.syncLoadedProjectView();
   }
 
   toggleTrackSolo(trackId: string): void {
@@ -224,6 +232,15 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     this.applySoloToEngine();
     const hasSolo = this.project!.tracks.some((x) => x.solo);
     this.state.update((s) => ({ ...s, hasSoloTracks: hasSolo }));
+    this.syncLoadedProjectView();
+  }
+
+  hasStemAudio(trackId: string): boolean {
+    return this.loadedStemIds.has(trackId);
+  }
+
+  private syncLoadedProjectView(): void {
+    this.loadedProject.set(this.project ? cloneProject(this.project) : null);
   }
 
   private applySoloToEngine(): void {
