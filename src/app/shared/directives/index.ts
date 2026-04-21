@@ -1,0 +1,2 @@
+/** Directivas standalone compartidas. */
+export {};

@@ -1,0 +1,17 @@
+@use 'app/shared/ui/tokens';
+
+/* Global resets mínimos; mobile-first (base tipográfica y box model). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}

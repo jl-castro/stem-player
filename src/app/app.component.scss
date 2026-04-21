@@ -1,0 +1,9 @@
+/* Mobile-first: el shell solo delimita el viewport; estilos de producto irán por feature/shared. */
+:host {
+  display: block;
+  min-height: 100dvh;
+}
+
+.app-shell {
+  min-height: 100dvh;
+}
