@@ -5,6 +5,9 @@
 export interface AudioEnginePort {
   ensureAudioContext(): Promise<void>;
 
+  /** Decodifica un blob local a `AudioBuffer` usando el `AudioContext` actual. */
+  decodeBlob(blob: Blob): Promise<AudioBuffer>;
+
   /** Libera buffers y nodos asociados al proyecto actual. */
   reset(): void;
 
