@@ -1,4 +1,107 @@
-<section class="projects-page" aria-label="Projects">
-  <h1>Projects</h1>
-  <p>List of rehearsal projects will go here.</p>
-</section>
+<div class="projects-page">
+  <header class="page-header">
+    <h1>Proyectos</h1>
+    <p class="lede">Crea un proyecto con stems locales y ábrelo en el reproductor.</p>
+  </header>
+
+  @if (listError(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  <section class="card create-card" aria-labelledby="create-heading">
+    <h2 id="create-heading" class="card-title">Nuevo proyecto</h2>
+
+    <label class="field">
+      <span class="field-label">Nombre</span>
+      <input
+        type="text"
+        class="field-input"
+        placeholder="Ej. Ensayo 12 abril"
+        autocomplete="off"
+        [value]="newProjectName()"
+        (input)="onNewNameInput($event)"
+        [disabled]="isCreating()"
+      />
+    </label>
+
+    <label class="field">
+      <span class="field-label">Archivos (MP3, WAV, M4A)</span>
+      <input
+        #fileInput
+        type="file"
+        class="field-file"
+        accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
+        multiple
+        (change)="onFilesSelected($event)"
+        [disabled]="isCreating()"
+      />
+    </label>
+
+    @if (selectedFiles().length > 0) {
+      <p class="file-summary">{{ selectedFiles().length }} archivo(s) seleccionado(s)</p>
+    }
+
+    @if (createError(); as cErr) {
+      <div class="banner banner--error" role="alert">{{ cErr }}</div>
+    }
+
+    <button
+      type="button"
+      class="btn btn--primary"
+      [disabled]="createDisabled()"
+      (click)="onCreateProject()"
+    >
+      @if (isCreating()) {
+        Guardando…
+      } @else {
+        Crear proyecto
+      }
+    </button>
+  </section>
+
+  <section class="list-section" aria-labelledby="list-heading">
+    <h2 id="list-heading" class="section-title">Tus proyectos</h2>
+
+    @if (projects().length === 0) {
+      <p class="empty">No hay proyectos todavía. Crea uno arriba.</p>
+    }
+
+    <ul class="project-list">
+      @for (project of projects(); track project.id) {
+        <li class="project-row">
+          @if (renamingId() === project.id) {
+            <div class="rename-block">
+              <input
+                type="text"
+                class="field-input"
+                [value]="renameDraft()"
+                (input)="onRenameDraftInput($event)"
+                (keydown.enter)="confirmRename(project.id)"
+              />
+              <div class="rename-actions">
+                <button type="button" class="btn btn--small" (click)="confirmRename(project.id)">
+                  Guardar
+                </button>
+                <button type="button" class="btn btn--small btn--ghost" (click)="cancelRename()">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          } @else {
+            <div class="project-main">
+              <span class="project-name">{{ project.name }}</span>
+              <span class="project-meta">{{ project.tracks.length }} pista(s)</span>
+            </div>
+            <div class="project-actions">
+              <a class="btn btn--primary btn--link" [routerLink]="['/player', project.id]">Abrir</a>
+              <button type="button" class="btn" (click)="startRename(project)">Renombrar</button>
+              <button type="button" class="btn btn--danger" (click)="onDeleteProject(project)">
+                Eliminar
+              </button>
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  </section>
+</div>
