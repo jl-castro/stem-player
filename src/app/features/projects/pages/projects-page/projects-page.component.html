@@ -1,5 +1,6 @@
 <div class="projects-page">
   <header class="page-header">
+    <p class="page-eyebrow">Stem Player</p>
     <h1>Proyectos</h1>
     <p class="lede">
       Importa stems locales (MP3, WAV o M4A) y ábrelos en el reproductor. Todo se guarda solo en este dispositivo.
@@ -11,8 +12,8 @@
       <div class="banner banner--error" role="alert">{{ err }}</div>
     }
 
-    <section class="card create-card" aria-labelledby="create-heading">
-      <h2 id="create-heading" class="card-title">Nuevo proyecto</h2>
+    <section class="create-panel" aria-labelledby="create-heading">
+      <h2 id="create-heading" class="section-title">Nuevo proyecto</h2>
 
       <label class="field" for="project-name">
         <span class="field-label">Nombre</span>
@@ -28,26 +29,35 @@
         />
       </label>
 
-      <div class="field">
-        <label class="field-label" for="project-files">Archivos (MP3, WAV, M4A)</label>
-        <input
-          id="project-files"
-          #fileInput
-          type="file"
-          class="field-file"
-          accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
-          multiple
-          (change)="onFilesSelected($event)"
-          [disabled]="isCreating()"
-        />
+      <div class="field field--file">
+        <span class="field-label" id="files-label">Archivos de audio</span>
+        <div class="file-picker-wrap">
+          <input
+            id="project-files"
+            #fileInput
+            type="file"
+            class="field-file"
+            accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
+            multiple
+            aria-labelledby="files-label"
+            (change)="onFilesSelected($event)"
+            [disabled]="isCreating()"
+          />
+          <label class="file-picker" for="project-files">
+            <span class="file-picker__prompt">Seleccionar MP3, WAV o M4A</span>
+            <span class="file-picker__hint">Puedes elegir varios archivos a la vez</span>
+          </label>
+        </div>
       </div>
 
       @if (selectedFiles().length > 0) {
-        <p class="file-summary" role="status">{{ selectedFiles().length }} archivo(s) seleccionado(s)</p>
+        <p class="file-summary" role="status">
+          {{ selectedFiles().length }} archivo(s) listo(s) para importar
+        </p>
       }
 
       @if (isCreating() && createPhaseMessage()) {
-        <p class="create-status loading-hint--pulse" role="status">{{ createPhaseMessage() }}</p>
+        <p class="create-status loading-hint loading-hint--pulse" role="status">{{ createPhaseMessage() }}</p>
       }
 
       @if (createError(); as cErr) {
@@ -81,12 +91,22 @@
     </section>
 
     <section class="list-section" aria-labelledby="list-heading">
-      <h2 id="list-heading" class="section-title">Tus proyectos</h2>
+      <div class="list-section__head">
+        <h2 id="list-heading" class="section-title">Tus proyectos</h2>
+        @if (!listLoading() && projects().length > 0) {
+          <span class="list-count" aria-hidden="true">{{ projects().length }}</span>
+        }
+      </div>
 
       @if (listLoading()) {
         <p class="loading-hint loading-hint--pulse" role="status">Cargando proyectos…</p>
       } @else if (projects().length === 0) {
-        <p class="empty">Aún no hay proyectos. Crea uno con el formulario de arriba.</p>
+        <div class="empty-state" role="status">
+          <p class="empty-state__title">Sin proyectos todavía</p>
+          <p class="empty-state__body">
+            Pon un nombre, elige tus stems y pulsa «Crear proyecto». El reproductor abrirá todas las pistas a la vez.
+          </p>
+        </div>
       }
 
       @if (renameError(); as rErr) {
@@ -111,7 +131,7 @@
                 <div class="rename-actions">
                   <button
                     type="button"
-                    class="btn btn--small"
+                    class="btn btn--small btn--primary"
                     [disabled]="isCreating()"
                     (click)="confirmRename(project.id)"
                   >
@@ -129,29 +149,30 @@
               </div>
               <div class="project-actions">
                 <a
-                  class="btn btn--primary btn--link"
+                  class="btn btn--primary btn--link btn--icon btn--icon-text"
                   [routerLink]="['/player', project.id]"
                   [attr.aria-label]="'Abrir proyecto ' + project.name"
                 >
-                  Abrir
+                  <svg lucidePlay [size]="18"></svg>
+                  <span>Abrir</span>
                 </a>
                 <button
                   type="button"
-                  class="btn"
+                  class="btn btn--small btn--icon btn--icon-only"
                   [disabled]="isCreating()"
                   [attr.aria-label]="'Renombrar ' + project.name"
                   (click)="startRename(project)"
                 >
-                  Renombrar
+                  <svg lucidePencil [size]="18"></svg>
                 </button>
                 <button
                   type="button"
-                  class="btn btn--danger"
+                  class="btn btn--small btn--danger btn--icon btn--icon-only"
                   [disabled]="isCreating()"
                   [attr.aria-label]="'Eliminar ' + project.name"
                   (click)="onDeleteProject(project)"
                 >
-                  Eliminar
+                  <svg lucideTrash2 [size]="18"></svg>
                 </button>
               </div>
             }

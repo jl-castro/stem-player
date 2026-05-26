@@ -181,11 +181,20 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     if (!this.project || !this.state().canPlay) {
       return;
     }
+    const { currentTimeMs, durationMs } = this.state();
+    const atEnd = durationMs > 0 && currentTimeMs >= durationMs;
+    const offsetMs = atEnd ? 0 : currentTimeMs;
+
     void this.engine
       .ensureAudioContext()
       .then(() => {
-        this.engine.startPlayback(this.state().currentTimeMs);
-        this.state.update((s) => ({ ...s, status: 'playing', errorMessage: null }));
+        this.engine.startPlayback(offsetMs);
+        this.state.update((s) => ({
+          ...s,
+          status: 'playing',
+          currentTimeMs: offsetMs,
+          errorMessage: null,
+        }));
         this.startRafLoop();
       })
       .catch((e) => {

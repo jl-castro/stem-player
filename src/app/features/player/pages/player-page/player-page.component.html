@@ -1,19 +1,24 @@
 <div class="player-page">
   <header class="player-header">
-    <a routerLink="/projects" class="back-link">← Proyectos</a>
-    @if (playback.loadedProject(); as proj) {
-      <h1 class="project-title">{{ proj.name }}</h1>
-    } @else {
-      <h1 class="project-title">Reproductor</h1>
-    }
-    <p class="status-line" [attr.data-status]="combinedStatus()" aria-live="polite">
-      <span class="status-badge">{{ statusLabel() }}</span>
-      @if (wakeLock.active()) {
-        <span class="wake-lock-hint wake-lock-hint--active">Pantalla activa</span>
-      } @else if (showWakeLockUnavailable()) {
-        <span class="wake-lock-hint wake-lock-hint--muted">Pantalla no bloqueada</span>
+    <a routerLink="/projects" class="icon-link">
+      <svg lucideArrowLeft [size]="18"></svg>
+      <span>Proyectos</span>
+    </a>
+    <div class="player-title-row">
+      @if (playback.loadedProject(); as proj) {
+        <h1 class="project-title">{{ proj.name }}</h1>
+      } @else {
+        <h1 class="project-title">Reproductor</h1>
       }
-    </p>
+      <p class="status-line" [attr.data-status]="combinedStatus()" aria-live="polite">
+        <span class="status-badge">{{ statusLabel() }}</span>
+        @if (wakeLock.active()) {
+          <span class="wake-lock-hint wake-lock-hint--active">Pantalla activa</span>
+        } @else if (showWakeLockUnavailable()) {
+          <span class="wake-lock-hint wake-lock-hint--muted">Pantalla no bloqueada</span>
+        }
+      </p>
+    </div>
     @if (!pageLoading() && hasInactiveStems()) {
       <p class="hint">Las pistas «Sin audio» no tienen archivo en este dispositivo.</p>
     }
@@ -72,7 +77,7 @@
                 [attr.aria-label]="'Reordenar ' + track.displayName"
                 [disabled]="trackListDisabled()"
               >
-                <span class="drag-handle__grip" aria-hidden="true"></span>
+                <svg lucideGripVertical [size]="16" aria-hidden="true"></svg>
                 <span class="sr-only">Arrastrar para reordenar</span>
               </button>
 
@@ -83,8 +88,7 @@
                   aria-hidden="true"
                 ></span>
                 <div class="mixer-channel__titles">
-                  <span class="track-display" [title]="track.displayName">{{ track.displayName }}</span>
-                  <span class="track-file" [title]="track.fileName">{{ track.fileName }}</span>
+                  <span class="track-display" [title]="track.fileName">{{ track.displayName }}</span>
                   @if (!playback.hasStemAudio(track.id)) {
                     <span class="track-badge">Sin audio</span>
                   }
@@ -145,80 +149,86 @@
   </main>
 
   <footer class="transport-bar" aria-label="Controles de transporte">
-    <div class="transport-times" aria-hidden="true">
-      <span>{{ seekThumbMs() | formatMs }}</span>
-      <span class="sep">/</span>
-      <span>{{ playback.state().durationMs | formatMs }}</span>
+    <div class="transport-progress">
+      <div class="transport-times" aria-hidden="true">
+        <span class="transport-time transport-time--current">{{ seekThumbMs() | formatMs }}</span>
+        <span class="transport-time transport-time--duration">{{ playback.state().durationMs | formatMs }}</span>
+      </div>
+
+      <label class="seek-label">
+        <span class="sr-only">Posición de reproducción</span>
+        <input
+          type="range"
+          class="seek"
+          [class.seek--scrubbing]="isScrubbing()"
+          min="0"
+          [max]="seekMax()"
+          [value]="seekThumbMs()"
+          [disabled]="seekDisabled()"
+          [attr.aria-valuemin]="0"
+          [attr.aria-valuemax]="seekMax()"
+          [attr.aria-valuenow]="seekThumbMs()"
+          [attr.aria-valuetext]="seekAriaValueText()"
+          (pointerdown)="onSeekPointerDown($event)"
+          (input)="onSeekInput($event)"
+          (pointerup)="onSeekPointerUp()"
+          (pointercancel)="onSeekPointerUp()"
+          (lostpointercapture)="onSeekPointerUp()"
+        />
+      </label>
     </div>
 
-    <label class="seek-label">
-      <span class="sr-only">Posición de reproducción</span>
-      <input
-        type="range"
-        class="seek"
-        [class.seek--scrubbing]="isScrubbing()"
-        min="0"
-        [max]="seekMax()"
-        [value]="seekThumbMs()"
-        [disabled]="seekDisabled()"
-        [attr.aria-valuemin]="0"
-        [attr.aria-valuemax]="seekMax()"
-        [attr.aria-valuenow]="seekThumbMs()"
-        [attr.aria-valuetext]="seekAriaValueText()"
-        (pointerdown)="onSeekPointerDown($event)"
-        (input)="onSeekInput($event)"
-        (pointerup)="onSeekPointerUp()"
-        (pointercancel)="onSeekPointerUp()"
-        (lostpointercapture)="onSeekPointerUp()"
-      />
-    </label>
+    <div class="transport-controls">
+      <div class="transport-row transport-row--primary">
+        <button
+          type="button"
+          class="btn btn--primary btn--icon btn--icon-only btn--transport-play"
+          [disabled]="playDisabled()"
+          [attr.aria-label]="playback.state().status === 'playing' ? 'Pausar reproducción' : 'Reproducir'"
+          (click)="togglePlayPause()"
+        >
+          @if (playback.state().status === 'playing') {
+            <svg lucidePause [size]="24"></svg>
+          } @else {
+            <svg lucidePlay [size]="24"></svg>
+          }
+        </button>
+        <button
+          type="button"
+          class="btn btn--icon btn--icon-only btn--ghost"
+          [disabled]="playDisabled()"
+          aria-label="Detener reproducción"
+          (click)="playback.stop()"
+        >
+          <svg lucideSquare [size]="20"></svg>
+        </button>
+        <button
+          type="button"
+          class="btn btn--icon btn--icon-only btn--ghost"
+          [disabled]="playDisabled()"
+          aria-label="Reiniciar desde el inicio"
+          (click)="playback.restart()"
+        >
+          <svg lucideRotateCcw [size]="20"></svg>
+        </button>
+      </div>
 
-    <div class="transport-row">
-      <button
-        type="button"
-        class="btn btn--primary btn--transport-main"
-        [disabled]="playDisabled()"
-        [attr.aria-label]="playback.state().status === 'playing' ? 'Pausar reproducción' : 'Reproducir'"
-        (click)="togglePlayPause()"
-      >
-        @if (playback.state().status === 'playing') {
-          Pausar
-        } @else {
-          Reproducir
-        }
-      </button>
-      <button
-        type="button"
-        class="btn"
-        [disabled]="playDisabled()"
-        aria-label="Detener reproducción"
-        (click)="playback.stop()"
-      >
-        Detener
-      </button>
-      <button
-        type="button"
-        class="btn"
-        [disabled]="playDisabled()"
-        aria-label="Reiniciar desde el inicio"
-        (click)="playback.restart()"
-      >
-        Reiniciar
-      </button>
+      <label class="master-row">
+        <span class="master-row__icon" aria-hidden="true">
+          <svg lucideVolume2 [size]="18"></svg>
+        </span>
+        <span class="sr-only">Volumen master</span>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          aria-label="Volumen master"
+          [value]="playback.state().masterVolume"
+          [disabled]="playDisabled()"
+          (input)="playback.setMasterVolume($any($event.target).valueAsNumber)"
+        />
+      </label>
     </div>
-
-    <label class="master-row">
-      <span>Master</span>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        aria-label="Volumen master"
-        [value]="playback.state().masterVolume"
-        [disabled]="playDisabled()"
-        (input)="playback.setMasterVolume($any($event.target).valueAsNumber)"
-      />
-    </label>
   </footer>
 </div>

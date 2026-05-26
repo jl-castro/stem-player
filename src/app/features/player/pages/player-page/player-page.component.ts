@@ -16,6 +16,15 @@ import { catchError, switchMap, tap } from 'rxjs/operators';
 
 import { ScreenWakeLockService } from '../../../../core/services/screen-wake-lock.service';
 import { formatMsAsMmSs } from '../../../../core/utils/format-time';
+import {
+  LucideArrowLeft,
+  LucideGripVertical,
+  LucidePause,
+  LucidePlay,
+  LucideRotateCcw,
+  LucideSquare,
+  LucideVolume2,
+} from '../../../../shared/icons/app-lucide-icons';
 import { FormatMsPipe } from '../../../../shared/pipes/format-ms.pipe';
 import { ProjectStorageService } from '../../../projects/services/project-storage.service';
 import { PlayerPlaybackService } from '../../services/player-playback.service';
@@ -23,7 +32,19 @@ import { PlayerPlaybackService } from '../../services/player-playback.service';
 @Component({
   selector: 'app-player-page',
   standalone: true,
-  imports: [NgClass, RouterLink, FormatMsPipe, DragDropModule],
+  imports: [
+    NgClass,
+    RouterLink,
+    FormatMsPipe,
+    DragDropModule,
+    LucideArrowLeft,
+    LucidePlay,
+    LucidePause,
+    LucideSquare,
+    LucideRotateCcw,
+    LucideVolume2,
+    LucideGripVertical,
+  ],
   templateUrl: './player-page.component.html',
   styleUrl: './player-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -10,10 +10,12 @@
 html {
   -webkit-text-size-adjust: 100%;
   background-color: var(--sp-bg);
+  overscroll-behavior: none;
 }
 
 body {
   margin: 0;
+  overscroll-behavior: none;
   font-family:
     system-ui,
     -apple-system,
@@ -22,9 +24,15 @@ body {
     sans-serif;
   font-size: 1rem;
   line-height: 1.5;
+  font-variant-numeric: tabular-nums;
   background-color: var(--sp-bg);
   color: var(--sp-text);
   color-scheme: dark;
+}
+
+::selection {
+  background: oklch(0.72 0.14 75 / 0.35);
+  color: var(--sp-text);
 }
 
 a {
