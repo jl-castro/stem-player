@@ -10,7 +10,13 @@ import {
 import { RouterLink } from '@angular/router';
 
 import type { Project } from '../../../../core/models';
-import { LucidePencil, LucidePlay, LucideTrash2 } from '../../../../shared/icons/app-lucide-icons';
+import {
+  LucideCheck,
+  LucidePencil,
+  LucideTrash2,
+  LucideUpload,
+  LucideX,
+} from '../../../../shared/icons/app-lucide-icons';
 import { sortTracksByOrder } from '../../../../core/utils/track-order.util';
 import { ProjectImportService } from '../../services/project-import.service';
 import { ProjectStorageService } from '../../services/project-storage.service';
@@ -18,7 +24,7 @@ import { ProjectStorageService } from '../../services/project-storage.service';
 @Component({
   selector: 'app-projects-page',
   standalone: true,
-  imports: [RouterLink, LucidePlay, LucidePencil, LucideTrash2],
+  imports: [RouterLink, LucidePencil, LucideTrash2, LucideUpload, LucideCheck, LucideX],
   templateUrl: './projects-page.component.html',
   styleUrl: './projects-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

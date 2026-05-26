@@ -1,10 +1,7 @@
 <div class="projects-page">
   <header class="page-header">
-    <p class="page-eyebrow">Stem Player</p>
     <h1>Proyectos</h1>
-    <p class="lede">
-      Importa stems locales (MP3, WAV o M4A) y ábrelos en el reproductor. Todo se guarda solo en este dispositivo.
-    </p>
+    <p class="page-tag">Local · MP3, WAV, M4A</p>
   </header>
 
   <main id="main-content" class="projects-main" tabindex="-1">
@@ -12,26 +9,20 @@
       <div class="banner banner--error" role="alert">{{ err }}</div>
     }
 
-    <section class="create-panel" aria-labelledby="create-heading">
-      <h2 id="create-heading" class="section-title">Nuevo proyecto</h2>
+    <section class="create-panel" aria-label="Nuevo proyecto">
+      <input
+        id="project-name"
+        type="text"
+        class="field-input"
+        placeholder="Nombre del proyecto"
+        autocomplete="off"
+        [value]="newProjectName()"
+        (input)="onNewNameInput($event)"
+        [disabled]="isCreating()"
+      />
 
-      <label class="field" for="project-name">
-        <span class="field-label">Nombre</span>
-        <input
-          id="project-name"
-          type="text"
-          class="field-input"
-          placeholder="Ej. Ensayo 12 abril"
-          autocomplete="off"
-          [value]="newProjectName()"
-          (input)="onNewNameInput($event)"
-          [disabled]="isCreating()"
-        />
-      </label>
-
-      <div class="field field--file">
-        <span class="field-label" id="files-label">Archivos de audio</span>
-        <div class="file-picker-wrap">
+      <div class="create-row">
+        <div class="field field--file">
           <input
             id="project-files"
             #fileInput
@@ -39,74 +30,55 @@
             class="field-file"
             accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
             multiple
-            aria-labelledby="files-label"
+            aria-label="Archivos de audio"
             (change)="onFilesSelected($event)"
             [disabled]="isCreating()"
           />
           <label class="file-picker" for="project-files">
-            <span class="file-picker__prompt">Seleccionar MP3, WAV o M4A</span>
-            <span class="file-picker__hint">Puedes elegir varios archivos a la vez</span>
+            <svg lucideUpload [size]="18" aria-hidden="true"></svg>
+            <span class="file-picker__text">
+              @if (selectedFiles().length > 0) {
+                {{ selectedFiles().length }} archivo(s)
+              } @else {
+                Elegir stems
+              }
+            </span>
           </label>
         </div>
-      </div>
 
-      @if (selectedFiles().length > 0) {
-        <p class="file-summary" role="status">
-          {{ selectedFiles().length }} archivo(s) listo(s) para importar
-        </p>
-      }
+        <button
+          type="button"
+          class="btn btn--primary btn--create"
+          [disabled]="createDisabled()"
+          [attr.aria-busy]="isCreating()"
+          [attr.aria-label]="isCreating() ? createPhaseMessage() : 'Crear proyecto'"
+          [attr.aria-describedby]="showCreateHint() ? 'create-hint' : null"
+          (click)="onCreateProject()"
+        >
+          {{ isCreating() ? '…' : 'Crear' }}
+        </button>
+      </div>
 
       @if (isCreating() && createPhaseMessage()) {
         <p class="create-status loading-hint loading-hint--pulse" role="status">{{ createPhaseMessage() }}</p>
       }
 
       @if (createError(); as cErr) {
-        <div class="banner banner--error" role="alert">{{ cErr }}</div>
+        <div class="banner banner--error banner--compact" role="alert">{{ cErr }}</div>
       }
 
       @if (showCreateHint()) {
-        <p class="create-hint" id="create-hint">Indica un nombre y al menos un archivo para crear el proyecto.</p>
+        <p class="create-hint sr-only" id="create-hint">Indica un nombre y al menos un archivo.</p>
       }
-
-      <button
-        type="button"
-        class="btn btn--primary btn--block"
-        [disabled]="createDisabled()"
-        [attr.aria-busy]="isCreating()"
-        [attr.aria-describedby]="showCreateHint() ? 'create-hint' : null"
-        (click)="onCreateProject()"
-      >
-        @if (isCreating()) {
-          @if (createPhase() === 'decoding') {
-            Analizando…
-          } @else if (createPhase() === 'persisting') {
-            Guardando…
-          } @else {
-            Procesando…
-          }
-        } @else {
-          Crear proyecto
-        }
-      </button>
     </section>
 
-    <section class="list-section" aria-labelledby="list-heading">
-      <div class="list-section__head">
-        <h2 id="list-heading" class="section-title">Tus proyectos</h2>
-        @if (!listLoading() && projects().length > 0) {
-          <span class="list-count" aria-hidden="true">{{ projects().length }}</span>
-        }
-      </div>
-
+    <section class="list-section" aria-label="Proyectos guardados">
       @if (listLoading()) {
-        <p class="loading-hint loading-hint--pulse" role="status">Cargando proyectos…</p>
+        <p class="loading-hint loading-hint--pulse list-status" role="status">Cargando…</p>
       } @else if (projects().length === 0) {
-        <div class="empty-state" role="status">
-          <p class="empty-state__title">Sin proyectos todavía</p>
-          <p class="empty-state__body">
-            Pon un nombre, elige tus stems y pulsa «Crear proyecto». El reproductor abrirá todas las pistas a la vez.
-          </p>
-        </div>
+        <p class="list-status list-status--empty" role="status">Sin proyectos aún.</p>
+      } @else {
+        <p class="list-status" aria-hidden="true">{{ projects().length }} guardado(s)</p>
       }
 
       @if (renameError(); as rErr) {
@@ -122,7 +94,7 @@
                 <input
                   [id]="'rename-' + project.id"
                   type="text"
-                  class="field-input"
+                  class="field-input field-input--compact"
                   [value]="renameDraft()"
                   (input)="onRenameDraftInput($event)"
                   (keydown.enter)="confirmRename(project.id)"
@@ -131,31 +103,33 @@
                 <div class="rename-actions">
                   <button
                     type="button"
-                    class="btn btn--small btn--primary"
+                    class="btn btn--small btn--primary btn--icon btn--icon-only"
                     [disabled]="isCreating()"
+                    aria-label="Guardar nombre"
                     (click)="confirmRename(project.id)"
                   >
-                    Guardar
+                    <svg lucideCheck [size]="18"></svg>
                   </button>
-                  <button type="button" class="btn btn--small btn--ghost" (click)="cancelRename()">
-                    Cancelar
+                  <button
+                    type="button"
+                    class="btn btn--small btn--ghost btn--icon btn--icon-only"
+                    aria-label="Cancelar"
+                    (click)="cancelRename()"
+                  >
+                    <svg lucideX [size]="18"></svg>
                   </button>
                 </div>
               </div>
             } @else {
-              <div class="project-main">
+              <a
+                class="project-link"
+                [routerLink]="['/player', project.id]"
+                [attr.aria-label]="'Abrir ' + project.name"
+              >
                 <span class="project-name">{{ project.name }}</span>
-                <span class="project-meta">{{ project.tracks.length }} pista(s)</span>
-              </div>
+                <span class="project-meta">{{ project.tracks.length }} pistas</span>
+              </a>
               <div class="project-actions">
-                <a
-                  class="btn btn--primary btn--link btn--icon btn--icon-text"
-                  [routerLink]="['/player', project.id]"
-                  [attr.aria-label]="'Abrir proyecto ' + project.name"
-                >
-                  <svg lucidePlay [size]="18"></svg>
-                  <span>Abrir</span>
-                </a>
                 <button
                   type="button"
                   class="btn btn--small btn--icon btn--icon-only"

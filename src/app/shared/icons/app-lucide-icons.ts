@@ -1,5 +1,6 @@
 import {
   LucideArrowLeft,
+  LucideCheck,
   LucideGripVertical,
   LucidePause,
   LucidePencil,
@@ -7,7 +8,9 @@ import {
   LucideRotateCcw,
   LucideSquare,
   LucideTrash2,
+  LucideUpload,
   LucideVolume2,
+  LucideX,
   provideLucideIcons,
 } from '@lucide/angular';
 
@@ -22,6 +25,9 @@ export const APP_LUCIDE_ICONS = [
   LucideGripVertical,
   LucidePencil,
   LucideTrash2,
+  LucideUpload,
+  LucideCheck,
+  LucideX,
 ] as const;
 
 export function provideAppLucideIcons() {
@@ -30,6 +36,7 @@ export function provideAppLucideIcons() {
 
 export {
   LucideArrowLeft,
+  LucideCheck,
   LucideGripVertical,
   LucidePause,
   LucidePencil,
@@ -37,5 +44,7 @@ export {
   LucideRotateCcw,
   LucideSquare,
   LucideTrash2,
+  LucideUpload,
   LucideVolume2,
+  LucideX,
 };

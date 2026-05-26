@@ -119,22 +119,73 @@
               </div>
 
               <div class="mixer-channel__fader">
-                <label class="fader-wrap">
-                  <span class="sr-only">Volumen {{ track.displayName }}</span>
-                  <input
-                    type="range"
-                    class="vol-slider vol-slider--vertical"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    [value]="track.volume"
-                    [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
-                    [style.--track-accent]="track.color"
-                    (input)="
-                      playback.setTrackVolume(track.id, $any($event.target).valueAsNumber)
-                    "
-                  />
-                </label>
+                <div class="fader-column">
+                  <div class="fader-scale" aria-hidden="true">
+                    <span class="fader-scale__label">100</span>
+                    <span class="fader-scale__tick"></span>
+                    <span class="fader-scale__label">50</span>
+                    <span class="fader-scale__tick"></span>
+                    <span class="fader-scale__label">0</span>
+                  </div>
+                  <label class="fader-wrap">
+                    <span class="sr-only">Volumen {{ track.displayName }}</span>
+                    <input
+                      type="range"
+                      class="vol-slider vol-slider--vertical"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      [value]="track.volume"
+                      [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
+                      [style.--track-accent]="track.color"
+                      (input)="
+                        playback.setTrackVolume(track.id, $any($event.target).valueAsNumber)
+                      "
+                    />
+                  </label>
+                </div>
+                <div class="fader-footer">
+                  <span class="vol-level" aria-hidden="true">{{ volumePercent(track.volume) }}</span>
+                  <div
+                    class="vol-presets"
+                    role="group"
+                    [attr.aria-label]="'Nivel de ' + track.displayName"
+                  >
+                    <button
+                      type="button"
+                      class="vol-preset"
+                      [class.vol-preset--active]="isVolumeAt(track.volume, 0)"
+                      [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
+                      [attr.aria-pressed]="isVolumeAt(track.volume, 0)"
+                      [attr.aria-label]="'Volumen 0 % en ' + track.displayName"
+                      (click)="setTrackVolumeLevel(track.id, 0)"
+                    >
+                      0
+                    </button>
+                    <button
+                      type="button"
+                      class="vol-preset"
+                      [class.vol-preset--active]="isVolumeAt(track.volume, 50)"
+                      [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
+                      [attr.aria-pressed]="isVolumeAt(track.volume, 50)"
+                      [attr.aria-label]="'Volumen 50 % en ' + track.displayName"
+                      (click)="setTrackVolumeLevel(track.id, 50)"
+                    >
+                      50
+                    </button>
+                    <button
+                      type="button"
+                      class="vol-preset"
+                      [class.vol-preset--active]="isVolumeAt(track.volume, 100)"
+                      [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
+                      [attr.aria-pressed]="isVolumeAt(track.volume, 100)"
+                      [attr.aria-label]="'Volumen 100 % en ' + track.displayName"
+                      (click)="setTrackVolumeLevel(track.id, 100)"
+                    >
+                      100
+                    </button>
+                  </div>
+                </div>
               </div>
             </article>
           } @empty {

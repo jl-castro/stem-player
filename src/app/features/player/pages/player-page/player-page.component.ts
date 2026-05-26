@@ -231,4 +231,16 @@ export class PlayerPageComponent {
     }
     void this.playback.reorderTracks(event.previousIndex, event.currentIndex);
   }
+
+  volumePercent(linear: number): number {
+    return Math.round(linear * 100);
+  }
+
+  isVolumeAt(linear: number, percent: 0 | 50 | 100): boolean {
+    return Math.abs(linear - percent / 100) < 0.04;
+  }
+
+  setTrackVolumeLevel(trackId: string, percent: 0 | 50 | 100): void {
+    this.playback.setTrackVolume(trackId, percent / 100);
+  }
 }
