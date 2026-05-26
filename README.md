@@ -7,9 +7,12 @@ Aplicacion web local para importar, guardar y reproducir proyectos de stems de a
 - Crear proyectos con uno o varios archivos de audio.
 - Guardar proyectos y archivos localmente en IndexedDB mediante Dexie.
 - Listar, renombrar y eliminar proyectos guardados.
-- Reproducir stems sincronizados con Web Audio.
-- Controlar transporte: reproducir, pausar, detener, reiniciar y buscar posicion.
-- Ajustar volumen master y volumen por pista.
+- Reproducir stems sincronizados con Web Audio (decodificación en worker, sin bloquear la UI).
+- Caché PCM en IndexedDB para no volver a decodificar al abrir el reproductor.
+- Modo en vivo (toggle): sin seek, exige todas las pistas cargadas antes de reproducir.
+- Recuperación si el navegador suspende el `AudioContext` (avisos y reanudar).
+- Controlar transporte: reproducir, pausar, detener, reiniciar y buscar posicion (seek desactivado en modo escenario).
+- Ajustar volumen master y volumen por pista (la mezcla se guarda automáticamente).
 - Usar mute, solo y presets de volumen por stem.
 - Reordenar pistas con drag and drop y persistir el nuevo orden.
 - Mantener la pantalla activa durante la reproduccion cuando el navegador soporta Wake Lock.
@@ -29,7 +32,7 @@ Aplicacion web local para importar, guardar y reproducir proyectos de stems de a
 - Node.js compatible con Angular 20.
 - Un navegador moderno con soporte para Web Audio e IndexedDB.
 
-La importacion mide la duracion real de cada archivo con Web Audio. Los datos se guardan en el almacenamiento local del navegador, asi que borrar los datos del sitio puede eliminar los audios importados.
+La importacion decodifica cada archivo en un worker (duracion + cache PCM). Los datos se guardan en el almacenamiento local del navegador, asi que borrar los datos del sitio puede eliminar los audios importados. Puedes instalar la app como PWA desde el navegador (manifest incluido).
 
 ## Instalacion
 

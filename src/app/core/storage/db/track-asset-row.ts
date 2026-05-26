@@ -6,4 +6,6 @@ export interface TrackAssetRow {
   projectId: string;
   trackId: string;
   blob: Blob;
+  /** SHA-256 hex del blob; ausente en filas creadas antes de la migración v2. */
+  contentHash?: string;
 }

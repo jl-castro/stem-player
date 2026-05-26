@@ -1,9 +1,16 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 
 import type { TrackAudioSlot } from '../audio/track-audio-slot';
 import type { AudioEnginePort } from '../contracts';
 
 const LOOKAHEAD_SEC = 0.05;
+const SEEK_FADE_SEC = 0.025;
+
+export type AudioContextStateKind = AudioContextState | 'closed' | 'interrupted';
+
+function isContextBlocked(state: string): boolean {
+  return state === 'suspended' || state === 'interrupted';
+}
 
 @Injectable({ providedIn: 'root' })
 export class AudioEngineService implements AudioEnginePort {
@@ -23,9 +30,19 @@ export class AudioEngineService implements AudioEnginePort {
   private playheadAtAnchorMs = 0;
   private pausedOrStoppedPlayheadMs = 0;
 
+  private wasPlayingOnSuspend = false;
+
+  /** Estado del AudioContext para UI y recuperación en vivo. */
+  readonly contextState = signal<AudioContextStateKind>('closed');
+
+  /** true cuando el contexto no está `running` y hace falta reanudar. */
+  readonly needsUserResume = signal(false);
+
   async ensureAudioContext(): Promise<void> {
     if (!this.ctx) {
-      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const Ctx =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) {
         throw new Error('Web Audio API is not available in this environment.');
       }
@@ -33,9 +50,36 @@ export class AudioEngineService implements AudioEnginePort {
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.value = this.masterLinear;
       this.masterGain.connect(this.ctx.destination);
+      this.bindContextListeners(this.ctx);
+      this.contextState.set(this.ctx.state);
     }
-    if (this.ctx.state === 'suspended') {
+    if (isContextBlocked(this.ctx.state)) {
       await this.ctx.resume();
+    }
+    this.contextState.set(this.ctx.state);
+    this.needsUserResume.set(this.ctx.state !== 'running');
+  }
+
+  async tryResumeContext(): Promise<boolean> {
+    if (!this.ctx) {
+      return false;
+    }
+    try {
+      if (isContextBlocked(this.ctx.state)) {
+        await this.ctx.resume();
+      }
+      this.contextState.set(this.ctx.state);
+      const ok = this.ctx.state === 'running';
+      this.needsUserResume.set(!ok);
+      if (ok && this.wasPlayingOnSuspend) {
+        this.wasPlayingOnSuspend = false;
+        const offset = this.pausedOrStoppedPlayheadMs;
+        this.startPlayback(offset);
+      }
+      return ok;
+    } catch {
+      this.needsUserResume.set(true);
+      return false;
     }
   }
 
@@ -45,7 +89,8 @@ export class AudioEngineService implements AudioEnginePort {
     return await this.ctx!.decodeAudioData(arrayBuffer.slice(0));
   }
 
-  reset(): void {
+  /** Detiene transporte y desmonta pistas sin cerrar el AudioContext (reutilizable en sesión). */
+  unmountStems(): void {
     this.stopScheduledSourcesOnly();
     this.isTransportPlaying = false;
     this.pausedOrStoppedPlayheadMs = 0;
@@ -53,29 +98,13 @@ export class AudioEngineService implements AudioEnginePort {
     this.playheadAtAnchorMs = 0;
     this.playAnchorCtxTime = 0;
     this.soloTrackIds.clear();
+    this.disconnectAllSlots();
+  }
 
-    for (const slot of this.slots.values()) {
-      try {
-        slot.gainNode.disconnect();
-      } catch {
-        /* ignore */
-      }
-    }
-    this.slots.clear();
-
-    if (this.masterGain && this.ctx) {
-      try {
-        this.masterGain.disconnect();
-      } catch {
-        /* ignore */
-      }
-      this.masterGain = null;
-    }
-
-    if (this.ctx) {
-      void this.ctx.close();
-      this.ctx = null;
-    }
+  /** Cierra el contexto y libera todo (cambio de proyecto o fin de sesión). */
+  reset(): void {
+    this.unmountStems();
+    this.teardownContext();
   }
 
   mountDecodedStems(buffers: ReadonlyMap<string, AudioBuffer>): void {
@@ -83,14 +112,7 @@ export class AudioEngineService implements AudioEnginePort {
       throw new Error('AudioContext is not initialized; call ensureAudioContext() first.');
     }
 
-    for (const slot of this.slots.values()) {
-      try {
-        slot.gainNode.disconnect();
-      } catch {
-        /* ignore */
-      }
-    }
-    this.slots.clear();
+    this.disconnectAllSlots();
     this.stopScheduledSourcesOnly();
     this.isTransportPlaying = false;
     this.pausedOrStoppedPlayheadMs = 0;
@@ -121,6 +143,11 @@ export class AudioEngineService implements AudioEnginePort {
     if (!ctx || !this.masterGain || this.slots.size === 0) {
       return;
     }
+    if (ctx.state !== 'running') {
+      this.wasPlayingOnSuspend = true;
+      this.needsUserResume.set(true);
+      return;
+    }
 
     this.stopScheduledSourcesOnly();
 
@@ -128,6 +155,7 @@ export class AudioEngineService implements AudioEnginePort {
     this.playheadAtAnchorMs = clampedOffset;
     this.playAnchorCtxTime = ctx.currentTime + LOOKAHEAD_SEC;
     this.isTransportPlaying = true;
+    this.needsUserResume.set(false);
 
     for (const slot of this.slots.values()) {
       const offsetSec = clampedOffset / 1000;
@@ -157,6 +185,7 @@ export class AudioEngineService implements AudioEnginePort {
     }
     this.stopScheduledSourcesOnly();
     this.isTransportPlaying = false;
+    this.wasPlayingOnSuspend = false;
   }
 
   haltPlayback(): void {
@@ -165,18 +194,21 @@ export class AudioEngineService implements AudioEnginePort {
     this.pausedOrStoppedPlayheadMs = 0;
     this.playheadAtAnchorMs = 0;
     this.playAnchorCtxTime = 0;
+    this.wasPlayingOnSuspend = false;
   }
 
   setPlayhead(timeMs: number): number {
     const clamped = this.clampTimelineMs(timeMs);
     const wasPlaying = this.isTransportPlaying;
 
+    this.applySeekFadeOut();
     this.stopScheduledSourcesOnly();
     this.pausedOrStoppedPlayheadMs = clamped;
     this.playheadAtAnchorMs = clamped;
 
     if (wasPlaying && this.ctx && this.slots.size > 0) {
       this.startPlayback(clamped);
+      this.applySeekFadeIn();
     } else {
       this.isTransportPlaying = false;
     }
@@ -225,9 +257,56 @@ export class AudioEngineService implements AudioEnginePort {
     }
   }
 
-  /** Duración de transporte según buffers montados (ms). */
   getMaxDurationMs(): number {
     return this.maxDurationMs;
+  }
+
+  isPlaying(): boolean {
+    return this.isTransportPlaying;
+  }
+
+  /** Contexto activo (llamar tras `ensureAudioContext`). */
+  getContext(): AudioContext {
+    if (!this.ctx) {
+      throw new Error('AudioContext is not initialized.');
+    }
+    return this.ctx;
+  }
+
+  private bindContextListeners(ctx: AudioContext): void {
+    ctx.onstatechange = () => {
+      this.contextState.set(ctx.state);
+      if (isContextBlocked(ctx.state)) {
+        if (this.isTransportPlaying) {
+          this.wasPlayingOnSuspend = true;
+          this.pausedOrStoppedPlayheadMs = this.computeLivePlayheadMs();
+          this.stopScheduledSourcesOnly();
+          this.isTransportPlaying = false;
+        }
+        this.needsUserResume.set(true);
+      } else if (ctx.state === 'running') {
+        this.needsUserResume.set(false);
+      }
+    };
+  }
+
+  private applySeekFadeOut(): void {
+    if (!this.ctx || !this.masterGain) {
+      return;
+    }
+    const now = this.ctx.currentTime;
+    this.masterGain.gain.cancelScheduledValues(now);
+    this.masterGain.gain.setValueAtTime(this.masterLinear, now);
+    this.masterGain.gain.linearRampToValueAtTime(0, now + SEEK_FADE_SEC);
+  }
+
+  private applySeekFadeIn(): void {
+    if (!this.ctx || !this.masterGain) {
+      return;
+    }
+    const now = this.ctx.currentTime;
+    this.masterGain.gain.setValueAtTime(0, now);
+    this.masterGain.gain.linearRampToValueAtTime(this.masterLinear, now + SEEK_FADE_SEC);
   }
 
   private computeLivePlayheadMs(): number {
@@ -259,6 +338,36 @@ export class AudioEngineService implements AudioEnginePort {
       }
     }
     this.activeSources = [];
+  }
+
+  private disconnectAllSlots(): void {
+    for (const slot of this.slots.values()) {
+      try {
+        slot.gainNode.disconnect();
+      } catch {
+        /* ignore */
+      }
+    }
+    this.slots.clear();
+  }
+
+  private teardownContext(): void {
+    if (this.masterGain && this.ctx) {
+      try {
+        this.masterGain.disconnect();
+      } catch {
+        /* ignore */
+      }
+      this.masterGain = null;
+    }
+
+    if (this.ctx) {
+      void this.ctx.close();
+      this.ctx = null;
+    }
+    this.contextState.set('closed');
+    this.needsUserResume.set(false);
+    this.wasPlayingOnSuspend = false;
   }
 
   private applyEffectiveGain(slot: TrackAudioSlot): void {

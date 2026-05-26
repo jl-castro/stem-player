@@ -18,6 +18,8 @@ export interface PlayerState {
   hasSoloTracks: boolean;
   canPlay: boolean;
   errorMessage: string | null;
+  /** AudioContext suspendido o interrumpido; requiere reanudar. */
+  audioSuspended: boolean;
 }
 
 export function createInitialPlayerState(): PlayerState {
@@ -30,5 +32,6 @@ export function createInitialPlayerState(): PlayerState {
     hasSoloTracks: false,
     canPlay: false,
     errorMessage: null,
+    audioSuspended: false,
   };
 }

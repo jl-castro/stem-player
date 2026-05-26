@@ -7,4 +7,6 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   tracks: StemTrack[];
+  /** Ganancia maestra lineal 0–1 persistida con el proyecto. */
+  masterVolume?: number;
 }

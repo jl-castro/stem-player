@@ -91,9 +91,24 @@ export class PlayerPageComponent {
     return st.status;
   });
 
+  readonly loadProgressPercent = computed(() => {
+    const p = this.playback.loadProgress();
+    if (!p || p.total <= 0) {
+      return null;
+    }
+    return Math.round((p.loaded / p.total) * 100);
+  });
+
   readonly statusLabel = computed(() => {
     if (this.pageLoading()) {
+      const p = this.playback.loadProgress();
+      if (p) {
+        return `${p.label} (${p.loaded}/${p.total})`;
+      }
       return 'Cargando…';
+    }
+    if (this.playback.state().audioSuspended) {
+      return 'Audio suspendido';
     }
     const map: Record<string, string> = {
       loading: 'Cargando…',
@@ -122,6 +137,7 @@ export class PlayerPageComponent {
 
     this.destroyRef.onDestroy(() => {
       void this.wakeLock.releaseLock();
+      this.playback.detachFromPlayer();
     });
 
     this.route.paramMap
@@ -212,7 +228,11 @@ export class PlayerPageComponent {
   }
 
   seekDisabled(): boolean {
-    return this.playDisabled() || this.playback.state().durationMs <= 0;
+    return (
+      this.playDisabled() ||
+      this.playback.state().durationMs <= 0 ||
+      this.playback.liveMode()
+    );
   }
 
   trackListDisabled(): boolean {

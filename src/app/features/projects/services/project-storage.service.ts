@@ -1,7 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 
+import type { DecodedPcm } from '../../../core/audio/decoded-pcm';
 import type { ProjectStoragePort } from '../../../core/contracts';
 import type { Project } from '../../../core/models';
+import { sha256HexFromBlob } from '../../../core/utils/blob-hash';
+import type { DecodedCacheRow } from '../../../core/storage/db/decoded-cache-row';
 import { StemPlayerDatabase } from '../../../core/storage/stem-player.database';
 import {
   collectStoredAssetKeys,
@@ -47,6 +50,7 @@ export class ProjectStorageService implements ProjectStoragePort {
 
       for (const key of previousKeys) {
         if (!nextKeys.has(key)) {
+          await this.db.decodedCaches.delete(key);
           await this.db.trackAssets.delete(key);
         }
       }
@@ -72,7 +76,11 @@ export class ProjectStorageService implements ProjectStoragePort {
   }
 
   async deleteProject(id: string): Promise<void> {
-    await this.db.transaction('rw', this.db.projects, this.db.trackAssets, async () => {
+    await this.db.transaction('rw', this.db.projects, this.db.trackAssets, this.db.decodedCaches, async () => {
+      const assets = await this.db.trackAssets.where('projectId').equals(id).toArray();
+      for (const asset of assets) {
+        await this.db.decodedCaches.delete(asset.key);
+      }
       await this.db.trackAssets.where('projectId').equals(id).delete();
       await this.db.projects.delete(id);
     });
@@ -84,11 +92,13 @@ export class ProjectStorageService implements ProjectStoragePort {
    */
   async saveTrackAsset(projectId: string, trackId: string, blob: Blob): Promise<string> {
     const key = crypto.randomUUID();
+    const contentHash = await sha256HexFromBlob(blob);
     await this.db.trackAssets.put({
       key,
       projectId,
       trackId,
       blob,
+      contentHash,
     });
     return key;
   }
@@ -98,8 +108,46 @@ export class ProjectStorageService implements ProjectStoragePort {
     return row?.blob ?? null;
   }
 
+  async getTrackAssetContentHash(key: string): Promise<string | null> {
+    const row = await this.db.trackAssets.get(key);
+    return row?.contentHash ?? null;
+  }
+
+  async saveDecodedCache(assetKey: string, contentHash: string, pcm: DecodedPcm): Promise<void> {
+    const row: DecodedCacheRow = {
+      assetKey,
+      contentHash,
+      sampleRate: pcm.sampleRate,
+      length: pcm.length,
+      numberOfChannels: pcm.numberOfChannels,
+      channelData: pcm.channelData,
+      durationMs: pcm.durationMs,
+    };
+    await this.db.decodedCaches.put(row);
+  }
+
+  async getDecodedCache(
+    assetKey: string,
+    contentHash: string,
+  ): Promise<DecodedPcm | null> {
+    const row = await this.db.decodedCaches.get(assetKey);
+    if (!row || row.contentHash !== contentHash) {
+      return null;
+    }
+    return {
+      sampleRate: row.sampleRate,
+      length: row.length,
+      numberOfChannels: row.numberOfChannels,
+      channelData: row.channelData,
+      durationMs: row.durationMs,
+    };
+  }
+
   async deleteTrackAsset(key: string): Promise<void> {
-    await this.db.trackAssets.delete(key);
+    await this.db.transaction('rw', this.db.trackAssets, this.db.decodedCaches, async () => {
+      await this.db.decodedCaches.delete(key);
+      await this.db.trackAssets.delete(key);
+    });
   }
 
   /** Debe ejecutarse dentro de una transacción `rw` sobre `projects` + `trackAssets`. */

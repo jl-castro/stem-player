@@ -4,20 +4,45 @@
       <svg lucideArrowLeft [size]="18"></svg>
       <span>Proyectos</span>
     </a>
-    <div class="player-title-row">
-      @if (playback.loadedProject(); as proj) {
-        <h1 class="project-title">{{ proj.name }}</h1>
-      } @else {
-        <h1 class="project-title">Reproductor</h1>
-      }
-      <p class="status-line" [attr.data-status]="combinedStatus()" aria-live="polite">
-        <span class="status-badge">{{ statusLabel() }}</span>
-        @if (wakeLock.active()) {
-          <span class="wake-lock-hint wake-lock-hint--active">Pantalla activa</span>
-        } @else if (showWakeLockUnavailable()) {
-          <span class="wake-lock-hint wake-lock-hint--muted">Pantalla no bloqueada</span>
+    <div class="player-title-block">
+      <div class="player-title-row">
+        @if (playback.loadedProject(); as proj) {
+          <h1 class="project-title">{{ proj.name }}</h1>
+        } @else {
+          <h1 class="project-title">Reproductor</h1>
         }
-      </p>
+      </div>
+      <div class="player-meta-row">
+        <p class="status-line" [attr.data-status]="combinedStatus()" aria-live="polite">
+          <span class="status-badge">{{ statusLabel() }}</span>
+          @if (wakeLock.active()) {
+            <span class="wake-lock-hint wake-lock-hint--active">Pantalla activa</span>
+          } @else if (showWakeLockUnavailable()) {
+            <span class="wake-lock-hint wake-lock-hint--muted">Pantalla no bloqueada</span>
+          }
+        </p>
+        <label
+          class="live-toggle live-toggle--compact"
+          [class.live-toggle--on]="playback.liveMode()"
+          title="Sin seek; reproduce solo con todas las pistas cargadas"
+        >
+          <span class="live-toggle__title">Modo en vivo</span>
+          <span class="live-toggle__switch" aria-hidden="true">
+            <input
+              type="checkbox"
+              class="live-toggle__input"
+              [checked]="playback.liveMode()"
+              (change)="playback.toggleLiveMode()"
+            />
+            <span class="live-toggle__track">
+              <span class="live-toggle__thumb"></span>
+            </span>
+          </span>
+          <span class="sr-only">
+            Modo en vivo. Sin buscar posición; reproduce solo con todas las pistas cargadas.
+          </span>
+        </label>
+      </div>
     </div>
     @if (!pageLoading() && hasInactiveStems()) {
       <p class="hint">Las pistas «Sin audio» no tienen archivo en este dispositivo.</p>
@@ -31,6 +56,15 @@
 
     @if (playback.state().errorMessage && !pageError()) {
       <div class="banner banner--error" role="alert">{{ playback.state().errorMessage }}</div>
+    }
+
+    @if (playback.state().audioSuspended) {
+      <div class="banner banner--warn" role="alert">
+        El audio del navegador está suspendido.
+        <button type="button" class="btn btn--inline" (click)="playback.resumeAudio()">
+          Reactivar audio
+        </button>
+      </div>
     }
 
     @if (playback.loadSummary(); as hint) {
@@ -55,9 +89,19 @@
         (cdkDropListDropped)="onTrackDrop($event)"
       >
         @if (pageLoading()) {
-          <p class="loading-hint loading-hint--pulse mixer-strip__message" role="status">
-            Cargando pistas y audio…
-          </p>
+          <div class="load-progress mixer-strip__message" role="status">
+            <p class="loading-hint loading-hint--pulse">
+              {{ playback.loadProgress()?.label ?? 'Cargando pistas y audio…' }}
+            </p>
+            @if (loadProgressPercent() !== null) {
+              <progress
+                class="load-progress__bar"
+                [value]="loadProgressPercent()!"
+                max="100"
+              ></progress>
+              <span class="load-progress__pct">{{ loadProgressPercent() }} %</span>
+            }
+          </div>
         } @else {
           @for (track of playback.loadedProject()?.tracks ?? []; track track.id) {
             <article

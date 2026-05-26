@@ -1,0 +1,19 @@
+{
+  "name": "Stem Player",
+  "short_name": "Stems",
+  "description": "Reproductor local de stems para ensayo y escenario.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1f1c19",
+  "theme_color": "#1f1c19",
+  "orientation": "any",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
+  ]
+}
