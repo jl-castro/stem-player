@@ -813,6 +813,93 @@
   }
 }
 
+/* Phone landscape (short height): keep mixer tall, compress transport */
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 520px) {
+  .player-page {
+    gap: var(--sp-space-xs);
+    padding:
+      max(var(--sp-space-xs), env(safe-area-inset-top, 0px))
+      max(var(--sp-space-md), env(safe-area-inset-right, 0px))
+      max(var(--sp-space-xs), env(safe-area-inset-bottom, 0px))
+      max(var(--sp-space-md), env(safe-area-inset-left, 0px));
+  }
+
+  .player-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-space-sm);
+  }
+
+  .player-title-block {
+    min-width: 0;
+  }
+
+  .player-meta-row {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--sp-space-xs) var(--sp-space-sm);
+  }
+
+  .project-title {
+    font-size: 1.05rem;
+  }
+
+  .hint {
+    font-size: 0.7rem;
+    line-height: 1.25;
+  }
+
+  .mixer-strip.track-list {
+    padding: var(--sp-space-sm);
+    scroll-padding-inline: var(--sp-space-sm);
+  }
+
+  .mixer-channel.track-row,
+  .mixer-channel.cdk-drag-placeholder {
+    flex-basis: 7.25rem;
+    min-width: 6.5rem;
+    max-width: 11rem;
+  }
+
+  .transport-bar {
+    gap: var(--sp-space-xs);
+    padding: var(--sp-space-sm) var(--sp-space-md);
+    padding-bottom: calc(var(--sp-space-sm) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .transport-controls {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-space-sm);
+  }
+
+  .transport-row--primary {
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: var(--sp-space-sm);
+  }
+
+  .btn--transport-play {
+    min-width: 3rem;
+    min-height: 3rem;
+    width: 3rem;
+  }
+
+  .master-row {
+    flex: 0 1 12rem;
+    min-width: 9.5rem;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .master-row__icon {
+    width: 2.25rem;
+    min-height: 2.25rem;
+  }
+}
+
 /* Tablet portrait and up */
 @media (min-width: 768px) {
   .player-page {
@@ -975,6 +1062,24 @@
     min-width: 11rem;
     padding-top: 0;
     border-top: none;
+  }
+}
+
+/* Tablet landscape touch: prioritize mixer height and make transport denser */
+@media (min-width: 1024px) and (orientation: landscape) and (pointer: coarse) {
+  .player-page {
+    gap: var(--sp-space-sm);
+    padding-block:
+      max(var(--sp-space-sm), env(safe-area-inset-top, 0px))
+      max(var(--sp-space-sm), env(safe-area-inset-bottom, 0px));
+  }
+
+  .mixer-strip.track-list {
+    padding: var(--sp-space-md) var(--sp-space-lg);
+  }
+
+  .transport-bar {
+    padding-block: var(--sp-space-sm);
   }
 }
 
