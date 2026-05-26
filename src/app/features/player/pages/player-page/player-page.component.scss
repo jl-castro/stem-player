@@ -165,6 +165,36 @@
   border-color: var(--sp-border);
 }
 
+.ram-pill {
+  font-size: 0.6rem;
+  line-height: 1.2;
+  padding: 0.12rem 0.35rem;
+  border-radius: var(--sp-radius-pill);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  color: var(--sp-text-muted);
+  border-color: var(--sp-border);
+  background: var(--sp-surface);
+}
+
+.ram-pill--good {
+  color: var(--sp-success-text);
+  border-color: var(--sp-success-border);
+  background: var(--sp-success-bg);
+}
+
+.ram-pill--warn {
+  color: var(--sp-warning-text);
+  border-color: var(--sp-warning-border);
+  background: var(--sp-warning-bg);
+}
+
+.ram-pill--danger {
+  color: var(--sp-danger-text);
+  border-color: var(--sp-danger-border);
+  background: var(--sp-danger-bg);
+}
+
 .status-line[data-status='loading'] .status-badge {
   background: var(--sp-info-bg);
   color: var(--sp-info-text);

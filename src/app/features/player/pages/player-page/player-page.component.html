@@ -15,6 +15,17 @@
       <div class="player-meta-row">
         <p class="status-line" [attr.data-status]="combinedStatus()" aria-live="polite">
           <span class="status-badge">{{ statusLabel() }}</span>
+          @if (playback.ramHealth(); as rh) {
+            <span
+              class="ram-pill"
+              [class.ram-pill--good]="rh.level === 'good'"
+              [class.ram-pill--warn]="rh.level === 'warn'"
+              [class.ram-pill--danger]="rh.level === 'danger'"
+              [title]="rh.title"
+            >
+              RAM
+            </span>
+          }
           @if (wakeLock.active()) {
             <span class="wake-lock-hint wake-lock-hint--active">Pantalla activa</span>
           } @else if (showWakeLockUnavailable()) {
