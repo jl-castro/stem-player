@@ -1,59 +1,79 @@
-# StemPlayer
+# Stem Player
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.1.4.
+Aplicacion web local para importar, guardar y reproducir proyectos de stems de audio. Permite crear proyectos desde archivos MP3, WAV o M4A, mezclar pistas por separado y mantener los datos en el navegador.
 
-## Development server
+## Funcionalidades
 
-To start a local development server, run:
+- Crear proyectos con uno o varios archivos de audio.
+- Guardar proyectos y archivos localmente en IndexedDB mediante Dexie.
+- Listar, renombrar y eliminar proyectos guardados.
+- Reproducir stems sincronizados con Web Audio.
+- Controlar transporte: reproducir, pausar, detener, reiniciar y buscar posicion.
+- Ajustar volumen master y volumen por pista.
+- Usar mute, solo y presets de volumen por stem.
+- Reordenar pistas con drag and drop y persistir el nuevo orden.
+- Mantener la pantalla activa durante la reproduccion cuando el navegador soporta Wake Lock.
+- Mostrar avisos cuando un proyecto tiene pistas sin audio local disponible.
 
-```bash
-ng serve
-```
+## Stack
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- Angular 20
+- Angular CDK Drag Drop
+- Dexie / IndexedDB
+- Web Audio API
+- Lucide Angular
+- Karma + Jasmine para tests unitarios
 
-## Code scaffolding
+## Requisitos
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+- Node.js compatible con Angular 20.
+- Un navegador moderno con soporte para Web Audio e IndexedDB.
 
-```bash
-ng generate component component-name
-```
+La importacion mide la duracion real de cada archivo con Web Audio. Los datos se guardan en el almacenamiento local del navegador, asi que borrar los datos del sitio puede eliminar los audios importados.
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+## Instalacion
 
 ```bash
-ng test
+npm install
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+## Desarrollo
 
 ```bash
-ng e2e
+npm start
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Abre `http://localhost:4200/`. La aplicacion recarga automaticamente al cambiar archivos fuente.
 
-## Additional Resources
+## Build
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+```bash
+npm run build
+```
+
+El build de produccion queda en `dist/`.
+
+## Tests
+
+```bash
+npm test
+```
+
+Ejecuta los tests unitarios configurados con Karma y Jasmine.
+
+## Uso Basico
+
+1. Entra a `Proyectos`.
+2. Escribe un nombre para el proyecto.
+3. Selecciona uno o mas stems en formato MP3, WAV o M4A.
+4. Crea el proyecto y abrelo desde la lista.
+5. Usa el reproductor para mezclar, silenciar, poner pistas en solo, reordenar stems y controlar la reproduccion.
+
+## Estructura Principal
+
+- `src/app/features/projects`: pantalla y servicios para importar, listar, renombrar y eliminar proyectos.
+- `src/app/features/player`: reproductor, mezclador y estado de playback.
+- `src/app/core/services`: motor de audio y Wake Lock.
+- `src/app/core/storage`: base Dexie, filas IndexedDB y mapeadores.
+- `src/app/core/models`: modelos de dominio para proyectos, stems y estado del reproductor.
+- `src/app/shared`: iconos, pipes, estilos compartidos y utilidades de UI.
