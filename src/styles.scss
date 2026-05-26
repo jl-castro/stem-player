@@ -1,6 +1,5 @@
 @use 'app/shared/ui/tokens';
 
-/* Global resets mínimos; mobile-first (base tipográfica y box model). */
 *,
 *::before,
 *::after {
@@ -9,9 +8,13 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  background-color: var(--sp-bg);
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background-color: var(--sp-bg);
+  color: var(--sp-text);
+  color-scheme: dark;
 }

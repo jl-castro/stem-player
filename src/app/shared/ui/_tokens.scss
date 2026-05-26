@@ -1,6 +1,29 @@
-// Tokens compartidos (espaciado, colores); ampliar cuando exista sistema visual.
+// Tokens dark compartidos (Projects, Player, shell).
 $space-page: 1rem;
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
+
+  --sp-bg: #0d1117;
+  --sp-surface: #161b22;
+  --sp-surface-raised: #1c222b;
+  --sp-border: #30363d;
+  --sp-border-strong: #484f58;
+  --sp-text: #f0f6fc;
+  --sp-text-secondary: #9aa4b2;
+  --sp-text-muted: #7d8590;
+  --sp-input-bg: #010409;
+  --sp-accent: #58a6ff;
+  --sp-accent-muted: #388bfd;
+  --sp-on-accent: #0d1117;
+  --sp-danger: #f85149;
+  --sp-danger-text: #ffa198;
+  --sp-danger-bg: rgba(248, 81, 73, 0.15);
+  --sp-danger-border: rgba(248, 81, 73, 0.4);
+  --sp-info-bg: rgba(56, 139, 253, 0.12);
+  --sp-info-text: #79c0ff;
+  --sp-info-border: rgba(56, 139, 253, 0.35);
+  --sp-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 4px 14px rgba(0, 0, 0, 0.4);
+  --sp-btn-disabled-bg: #21262d;
+  --sp-btn-disabled-text: #9aa4b2;
 }
