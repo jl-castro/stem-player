@@ -51,6 +51,12 @@
   --sp-radius-pill: 999px;
   --sp-touch-min: 2.75rem;
   --sp-page-max: 36rem;
+  --sp-page-max-tablet: 42rem;
+  --sp-page-max-wide: 52rem;
+  /* Breakpoints: 375 mobile · 768 tablet · 1024 tablet landscape · 1200 desktop */
+  --sp-bp-tablet: 48rem;
+  --sp-bp-tablet-lg: 64rem;
+  --sp-bp-desktop: 75rem;
   --sp-motion-fast: 150ms;
   --sp-motion-normal: 220ms;
   --sp-ease-out: cubic-bezier(0.16, 1, 0.3, 1);

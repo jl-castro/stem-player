@@ -301,3 +301,25 @@
     font-size: 1.35rem;
   }
 }
+
+@media (min-width: 768px) {
+  .projects-page {
+    max-width: var(--sp-page-max-tablet);
+    padding-inline: max(var(--sp-space-xl), env(safe-area-inset-right, 0px), env(safe-area-inset-left, 0px));
+    gap: var(--sp-space-lg);
+  }
+
+  .page-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .create-panel {
+    padding: var(--sp-space-lg);
+  }
+}
+
+@media (min-width: 1024px) {
+  .projects-page {
+    max-width: var(--sp-page-max-wide);
+  }
+}
