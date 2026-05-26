@@ -92,12 +92,15 @@
 
     <div class="mixer-wrap">
       <section
+        #mixerStrip
+        id="mixer-strip"
         class="mixer-strip track-list"
         aria-label="Mezclador de pistas"
         cdkDropList
         cdkDropListOrientation="horizontal"
         [cdkDropListDisabled]="trackListDisabled()"
         (cdkDropListDropped)="onTrackDrop($event)"
+        (scroll)="onMixerStripScroll($event)"
       >
         @if (pageLoading()) {
           <div class="load-progress mixer-strip__message" role="status">
@@ -251,6 +254,33 @@
           }
         }
       </section>
+      @if (showMixerScroller()) {
+        <div class="mixer-scrollbar-wrap">
+          <div
+            class="mixer-scrollbar"
+            role="scrollbar"
+            aria-controls="mixer-strip"
+            aria-orientation="horizontal"
+            tabindex="0"
+            [attr.aria-valuenow]="mixerScrollValue()"
+            aria-valuemin="0"
+            [attr.aria-valuemax]="mixerScrollMax()"
+            aria-label="Desplazamiento horizontal de pistas"
+            (pointerdown)="onMixerScrollbarPointerDown($event)"
+            (pointermove)="onMixerScrollbarPointerMove($event)"
+            (pointerup)="onMixerScrollbarPointerUp($event)"
+            (pointercancel)="onMixerScrollbarPointerUp($event)"
+          >
+            <div class="mixer-scrollbar__track">
+              <div
+                class="mixer-scrollbar__thumb"
+                [style.width.%]="mixerThumbWidthPercent()"
+                [style.left.%]="mixerThumbLeftPercent()"
+              ></div>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   </main>
 

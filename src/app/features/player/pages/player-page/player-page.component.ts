@@ -1,13 +1,16 @@
 import { NgClass } from '@angular/common';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   DestroyRef,
+  ElementRef,
   effect,
   inject,
   signal,
+  ViewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -56,11 +59,34 @@ export class PlayerPageComponent {
   private readonly storage = inject(ProjectStorageService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  @ViewChild('mixerStrip') private mixerStripRef?: ElementRef<HTMLElement>;
 
   readonly pageLoading = signal(false);
   readonly pageError = signal<string | null>(null);
   readonly isScrubbing = signal(false);
   readonly scrubMs = signal<number | null>(null);
+  readonly mixerScrollValue = signal(0);
+  readonly mixerScrollMax = signal(0);
+  readonly mixerScrollWidth = signal(0);
+  readonly mixerScrollClientWidth = signal(0);
+
+  readonly mixerThumbWidthPercent = computed(() => {
+    const scrollWidth = this.mixerScrollWidth();
+    const clientWidth = this.mixerScrollClientWidth();
+    if (scrollWidth <= 0 || clientWidth <= 0) {
+      return 100;
+    }
+    return Math.min(100, (clientWidth / scrollWidth) * 100);
+  });
+
+  readonly mixerThumbLeftPercent = computed(() => {
+    const max = this.mixerScrollMax();
+    if (max <= 0) {
+      return 0;
+    }
+    const travel = 100 - this.mixerThumbWidthPercent();
+    return (this.mixerScrollValue() / max) * travel;
+  });
 
   readonly seekThumbMs = computed(
     () => this.scrubMs() ?? this.playback.state().currentTimeMs,
@@ -129,6 +155,21 @@ export class PlayerPageComponent {
       this.playback.state().status === 'playing' &&
       (!this.wakeLock.supported() || this.wakeLock.error() !== null),
   );
+  readonly showMixerScroller = computed(
+    () => !this.pageLoading() && this.mixerScrollMax() > 0,
+  );
+
+  private readonly onWindowResize = (): void => {
+    this.refreshMixerScrollMetrics();
+  };
+
+  private mixerResizeObserver?: ResizeObserver;
+  private mixerScrollbarDrag: {
+    pointerId: number;
+    startClientX: number;
+    startScrollLeft: number;
+    travelPx: number;
+  } | null = null;
 
   constructor() {
     effect(() => {
@@ -136,10 +177,36 @@ export class PlayerPageComponent {
       void this.wakeLock.setDesired(shouldHold);
     });
 
+    effect(() => {
+      const trackCount = this.playback.loadedProject()?.tracks.length ?? 0;
+      if (trackCount > 0 && !this.pageLoading()) {
+        requestAnimationFrame(() => this.refreshMixerScrollMetrics());
+      }
+    });
+
+    afterNextRender(() => {
+      const el = this.mixerStripRef?.nativeElement;
+      if (!el || typeof ResizeObserver === 'undefined') {
+        return;
+      }
+      this.mixerResizeObserver = new ResizeObserver(() => {
+        this.refreshMixerScrollMetrics();
+      });
+      this.mixerResizeObserver.observe(el);
+    });
+
     this.destroyRef.onDestroy(() => {
       void this.wakeLock.releaseLock();
       this.playback.detachFromPlayer();
+      this.mixerResizeObserver?.disconnect();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', this.onWindowResize);
+      }
     });
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this.onWindowResize, { passive: true });
+    }
 
     this.route.paramMap
       .pipe(
@@ -171,6 +238,7 @@ export class PlayerPageComponent {
                     this.pageError.set(st.errorMessage ?? 'No se pudo preparar el audio.');
                   }
                   this.pageLoading.set(false);
+                  requestAnimationFrame(() => this.refreshMixerScrollMetrics());
                 }),
               );
             }),
@@ -251,6 +319,72 @@ export class PlayerPageComponent {
       return;
     }
     void this.playback.reorderTracks(event.previousIndex, event.currentIndex);
+    requestAnimationFrame(() => this.refreshMixerScrollMetrics());
+  }
+
+  onMixerStripScroll(ev: Event): void {
+    const el = ev.target as HTMLElement | null;
+    if (!el) {
+      return;
+    }
+    this.syncMixerScrollFromElement(el);
+  }
+
+  onMixerScrollbarPointerDown(ev: PointerEvent): void {
+    const scrollbar = ev.currentTarget as HTMLElement | null;
+    const track = scrollbar?.querySelector('.mixer-scrollbar__track') as HTMLElement | null;
+    const thumb = scrollbar?.querySelector('.mixer-scrollbar__thumb');
+    if (!scrollbar || !track || this.mixerScrollMax() <= 0) {
+      return;
+    }
+
+    const isThumb = thumb?.contains(ev.target as Node) ?? false;
+    const rect = track.getBoundingClientRect();
+    const thumbW = rect.width * (this.mixerThumbWidthPercent() / 100);
+    const travel = Math.max(1, rect.width - thumbW);
+
+    if (isThumb) {
+      this.mixerScrollbarDrag = {
+        pointerId: ev.pointerId,
+        startClientX: ev.clientX,
+        startScrollLeft: this.mixerScrollValue(),
+        travelPx: travel,
+      };
+      scrollbar.setPointerCapture(ev.pointerId);
+    } else {
+      this.scrollMixerFromTrackPointer(ev.clientX, track);
+    }
+    ev.preventDefault();
+  }
+
+  onMixerScrollbarPointerMove(ev: PointerEvent): void {
+    const drag = this.mixerScrollbarDrag;
+    if (!drag || ev.pointerId !== drag.pointerId) {
+      return;
+    }
+    const strip = this.mixerStripRef?.nativeElement;
+    if (!strip) {
+      return;
+    }
+    const max = this.mixerScrollMax();
+    const dx = ev.clientX - drag.startClientX;
+    strip.scrollLeft = Math.max(
+      0,
+      Math.min(max, drag.startScrollLeft + (dx / drag.travelPx) * max),
+    );
+    this.syncMixerScrollFromElement(strip);
+  }
+
+  onMixerScrollbarPointerUp(ev: PointerEvent): void {
+    const drag = this.mixerScrollbarDrag;
+    if (!drag || ev.pointerId !== drag.pointerId) {
+      return;
+    }
+    this.mixerScrollbarDrag = null;
+    const scrollbar = ev.currentTarget as HTMLElement | null;
+    if (scrollbar?.hasPointerCapture(ev.pointerId)) {
+      scrollbar.releasePointerCapture(ev.pointerId);
+    }
   }
 
   volumePercent(linear: number): number {
@@ -263,5 +397,44 @@ export class PlayerPageComponent {
 
   setTrackPanMode(trackId: string, mode: StemPanMode): void {
     this.playback.setTrackPan(trackId, mode);
+  }
+
+  private refreshMixerScrollMetrics(): void {
+    const el = this.mixerStripRef?.nativeElement;
+    if (!el) {
+      this.mixerScrollValue.set(0);
+      this.mixerScrollMax.set(0);
+      this.mixerScrollWidth.set(0);
+      this.mixerScrollClientWidth.set(0);
+      return;
+    }
+    this.syncMixerScrollFromElement(el);
+  }
+
+  private syncMixerScrollFromElement(el: HTMLElement): void {
+    const scrollWidth = el.scrollWidth;
+    const clientWidth = el.clientWidth;
+    this.mixerScrollWidth.set(scrollWidth);
+    this.mixerScrollClientWidth.set(clientWidth);
+    this.mixerScrollValue.set(Math.round(el.scrollLeft));
+    this.mixerScrollMax.set(Math.max(0, Math.round(scrollWidth - clientWidth)));
+  }
+
+  private scrollMixerFromTrackPointer(clientX: number, track: HTMLElement): void {
+    const strip = this.mixerStripRef?.nativeElement;
+    if (!strip) {
+      return;
+    }
+    const max = this.mixerScrollMax();
+    if (max <= 0) {
+      return;
+    }
+    const rect = track.getBoundingClientRect();
+    const thumbW = rect.width * (this.mixerThumbWidthPercent() / 100);
+    const travel = Math.max(0, rect.width - thumbW);
+    let x = clientX - rect.left - thumbW / 2;
+    x = Math.max(0, Math.min(travel, x));
+    strip.scrollLeft = travel > 0 ? (x / travel) * max : 0;
+    this.syncMixerScrollFromElement(strip);
   }
 }

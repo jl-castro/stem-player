@@ -263,12 +263,69 @@
   border: 1px solid var(--sp-border);
   border-radius: var(--sp-radius-lg);
   background: var(--sp-surface);
+  /* Scroll horizontal solo con la barra personalizada (.mixer-scrollbar). */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.mixer-strip.track-list::-webkit-scrollbar {
+  display: none;
 }
 
 .mixer-strip__message {
   flex: 1 0 100%;
   align-self: center;
   padding: var(--sp-space-md);
+}
+
+.mixer-scrollbar-wrap {
+  flex-shrink: 0;
+  padding: 0.15rem 0.2rem 0;
+}
+
+.mixer-scrollbar {
+  width: 100%;
+  height: 1.6rem;
+  padding: 0.2rem 0;
+  touch-action: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mixer-scrollbar__track {
+  position: relative;
+  height: 0.95rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    to bottom,
+    oklch(0.24 0.018 75 / 0.9),
+    oklch(0.2 0.016 75 / 0.9)
+  );
+  border: 1px solid oklch(0.36 0.02 75 / 0.55);
+}
+
+.mixer-scrollbar__thumb {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 2.25rem;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 2px solid oklch(0.2 0.016 75 / 0.95);
+  background: linear-gradient(
+    to bottom,
+    oklch(0.8 0.14 74 / 0.98),
+    oklch(0.69 0.13 74 / 0.98)
+  );
+  touch-action: none;
+}
+
+.mixer-scrollbar__thumb:active {
+  background: linear-gradient(
+    to bottom,
+    oklch(0.7 0.13 74 / 1),
+    oklch(0.62 0.12 74 / 1)
+  );
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -579,7 +636,8 @@
   transform-origin: center center;
   accent-color: var(--track-accent, var(--sp-accent));
   cursor: ns-resize;
-  touch-action: none;
+  /* Prioriza scroll horizontal del mixer; volumen solo con gesto vertical deliberado. */
+  touch-action: pan-x;
 }
 
 @supports (width: 1cqh) {
@@ -806,6 +864,23 @@
   .mixer-strip.track-list {
     gap: var(--sp-space-md);
     padding: var(--sp-space-md) var(--sp-space-lg);
+  }
+
+  .mixer-scrollbar-wrap {
+    padding-top: 0.3rem;
+  }
+
+  .mixer-scrollbar {
+    height: 2rem;
+  }
+
+  .mixer-scrollbar__track {
+    height: 1.15rem;
+  }
+
+  .mixer-scrollbar__thumb {
+    min-width: 2.8rem;
+    border-width: 3px;
   }
 
   .transport-bar {
