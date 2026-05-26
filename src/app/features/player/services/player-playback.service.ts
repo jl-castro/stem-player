@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 
 import type { PlayerPlaybackPort } from '../../../core/contracts';
-import type { Project } from '../../../core/models';
+import type { Project, StemPanMode } from '../../../core/models';
 import { createInitialPlayerState, type PlayerState } from '../../../core/models';
 import { AudioDecodeService } from '../../../core/services/audio-decode.service';
 import { AudioEngineService } from '../../../core/services/audio-engine.service';
@@ -89,6 +89,9 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     const copy = cloneProject(project);
     copy.tracks = sortTracksByOrder(copy.tracks);
     copy.masterVolume = copy.masterVolume ?? 1;
+    for (const t of copy.tracks) {
+      t.pan = t.pan ?? 'center';
+    }
 
     const fingerprint = buildAssetKeysFingerprint(copy.tracks);
     const sameProject = this.loadedProjectId === project.id;
@@ -270,6 +273,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
         continue;
       }
       this.engine.applyStemLinearGain(t.id, t.volume);
+      this.engine.applyStemPan(t.id, t.pan);
       this.engine.applyStemMute(t.id, t.muted);
     }
     this.applySoloToEngine();
@@ -450,6 +454,16 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       t.volume = v;
     }
     this.engine.applyStemLinearGain(trackId, v);
+    this.syncLoadedProjectView();
+    this.scheduleMixPersist();
+  }
+
+  setTrackPan(trackId: string, mode: StemPanMode): void {
+    const t = this.project?.tracks.find((x) => x.id === trackId);
+    if (t) {
+      t.pan = mode;
+    }
+    this.engine.applyStemPan(trackId, mode);
     this.syncLoadedProjectView();
     this.scheduleMixPersist();
   }

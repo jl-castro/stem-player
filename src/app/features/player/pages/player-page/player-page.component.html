@@ -204,40 +204,40 @@
                   <div
                     class="vol-presets"
                     role="group"
-                    [attr.aria-label]="'Nivel de ' + track.displayName"
+                    [attr.aria-label]="'Paneo de ' + track.displayName"
                   >
                     <button
                       type="button"
                       class="vol-preset"
-                      [class.vol-preset--active]="isVolumeAt(track.volume, 0)"
+                      [class.vol-preset--active]="isPanAt(track.pan, 'left')"
                       [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
-                      [attr.aria-pressed]="isVolumeAt(track.volume, 0)"
-                      [attr.aria-label]="'Volumen 0 % en ' + track.displayName"
-                      (click)="setTrackVolumeLevel(track.id, 0)"
+                      [attr.aria-pressed]="isPanAt(track.pan, 'left')"
+                      [attr.aria-label]="'Canal izquierdo en ' + track.displayName"
+                      (click)="setTrackPanMode(track.id, 'left')"
                     >
-                      0
+                      L
                     </button>
                     <button
                       type="button"
                       class="vol-preset"
-                      [class.vol-preset--active]="isVolumeAt(track.volume, 50)"
+                      [class.vol-preset--active]="isPanAt(track.pan, 'center')"
                       [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
-                      [attr.aria-pressed]="isVolumeAt(track.volume, 50)"
-                      [attr.aria-label]="'Volumen 50 % en ' + track.displayName"
-                      (click)="setTrackVolumeLevel(track.id, 50)"
+                      [attr.aria-pressed]="isPanAt(track.pan, 'center')"
+                      [attr.aria-label]="'Centro en ' + track.displayName"
+                      (click)="setTrackPanMode(track.id, 'center')"
                     >
-                      50
+                      L/R
                     </button>
                     <button
                       type="button"
                       class="vol-preset"
-                      [class.vol-preset--active]="isVolumeAt(track.volume, 100)"
+                      [class.vol-preset--active]="isPanAt(track.pan, 'right')"
                       [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
-                      [attr.aria-pressed]="isVolumeAt(track.volume, 100)"
-                      [attr.aria-label]="'Volumen 100 % en ' + track.displayName"
-                      (click)="setTrackVolumeLevel(track.id, 100)"
+                      [attr.aria-pressed]="isPanAt(track.pan, 'right')"
+                      [attr.aria-label]="'Canal derecho en ' + track.displayName"
+                      (click)="setTrackPanMode(track.id, 'right')"
                     >
-                      100
+                      R
                     </button>
                   </div>
                 </div>

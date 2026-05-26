@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 
 import type { TrackAudioSlot } from '../audio/track-audio-slot';
+import type { StemPanMode } from '../models';
 import type { AudioEnginePort } from '../contracts';
 
 const LOOKAHEAD_SEC = 0.05;
@@ -14,6 +15,12 @@ function isContextBlocked(state: string): boolean {
 
 @Injectable({ providedIn: 'root' })
 export class AudioEngineService implements AudioEnginePort {
+  private static panModeToLinear(mode: StemPanMode): number {
+    if (mode === 'left') return -1;
+    if (mode === 'right') return 1;
+    return 0;
+  }
+
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private masterLinear = 1;
@@ -119,15 +126,22 @@ export class AudioEngineService implements AudioEnginePort {
 
     let maxSec = 0;
     for (const [trackId, buffer] of buffers) {
+      const pannerNode = typeof this.ctx.createStereoPanner === 'function'
+        ? this.ctx.createStereoPanner()
+        : null;
       const gainNode = this.ctx.createGain();
       gainNode.gain.value = 0;
+      if (pannerNode) {
+        pannerNode.connect(gainNode);
+      }
       gainNode.connect(this.masterGain);
 
       this.slots.set(trackId, {
         trackId,
         buffer,
+        pannerNode,
         gainNode,
-        mix: { volume: 1, muted: false },
+        mix: { volume: 1, pan: 'center', muted: false },
       });
       maxSec = Math.max(maxSec, buffer.duration);
     }
@@ -164,7 +178,7 @@ export class AudioEngineService implements AudioEnginePort {
       }
       const src = ctx.createBufferSource();
       src.buffer = slot.buffer;
-      src.connect(slot.gainNode);
+      src.connect(slot.pannerNode ?? slot.gainNode);
       const playDurationSec = slot.buffer.duration - offsetSec;
       try {
         src.start(this.playAnchorCtxTime, offsetSec, playDurationSec);
@@ -248,6 +262,20 @@ export class AudioEngineService implements AudioEnginePort {
     }
     slot.mix.muted = muted;
     this.applyEffectiveGain(slot);
+  }
+
+  applyStemPan(trackId: string, mode: StemPanMode): void {
+    const slot = this.slots.get(trackId);
+    if (!slot) {
+      return;
+    }
+    slot.mix.pan = mode;
+    if (slot.pannerNode && this.ctx) {
+      slot.pannerNode.pan.setValueAtTime(
+        AudioEngineService.panModeToLinear(mode),
+        this.ctx.currentTime,
+      );
+    }
   }
 
   applySoloSet(soloedTrackIds: ReadonlySet<string>): void {
@@ -342,6 +370,11 @@ export class AudioEngineService implements AudioEnginePort {
 
   private disconnectAllSlots(): void {
     for (const slot of this.slots.values()) {
+      try {
+        slot.pannerNode?.disconnect();
+      } catch {
+        /* ignore */
+      }
       try {
         slot.gainNode.disconnect();
       } catch {

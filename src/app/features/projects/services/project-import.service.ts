@@ -86,6 +86,7 @@ export class ProjectImportService {
         order: trackOrder,
         durationMs,
         volume: 1,
+        pan: 'center',
         muted: false,
         solo: false,
         mimeType: file.type || guessMimeFromFileName(file.name),

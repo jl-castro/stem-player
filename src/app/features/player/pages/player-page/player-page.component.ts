@@ -14,6 +14,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { EMPTY, from } from 'rxjs';
 import { catchError, switchMap, tap } from 'rxjs/operators';
 
+import type { StemPanMode } from '../../../../core/models';
 import { ScreenWakeLockService } from '../../../../core/services/screen-wake-lock.service';
 import { formatMsAsMmSs } from '../../../../core/utils/format-time';
 import {
@@ -256,11 +257,11 @@ export class PlayerPageComponent {
     return Math.round(linear * 100);
   }
 
-  isVolumeAt(linear: number, percent: 0 | 50 | 100): boolean {
-    return Math.abs(linear - percent / 100) < 0.04;
+  isPanAt(current: StemPanMode, expected: StemPanMode): boolean {
+    return current === expected;
   }
 
-  setTrackVolumeLevel(trackId: string, percent: 0 | 50 | 100): void {
-    this.playback.setTrackVolume(trackId, percent / 100);
+  setTrackPanMode(trackId: string, mode: StemPanMode): void {
+    this.playback.setTrackPan(trackId, mode);
   }
 }

@@ -4,7 +4,8 @@ import type { StemTrack } from '../models';
 export interface TrackAudioSlot {
   trackId: string;
   buffer: AudioBuffer;
+  pannerNode: StereoPannerNode | null;
   gainNode: GainNode;
   /** Copia local de volumen/mute; solo global vía `applySoloSet` en el motor. */
-  mix: Pick<StemTrack, 'volume' | 'muted'>;
+  mix: Pick<StemTrack, 'volume' | 'pan' | 'muted'>;
 }

@@ -1,3 +1,5 @@
+export type StemPanMode = 'left' | 'center' | 'right';
+
 /**
  * Metadatos de un stem local; la fuente binaria se resolverá vía `storedAssetKey` al persistir.
  * `volume` es ganancia lineal 0–1 (UI puede mapear a dB más adelante).
@@ -11,6 +13,8 @@ export interface StemTrack {
   order: number;
   durationMs: number;
   volume: number;
+  /** Paneo discreto por stem: izquierda / centro / derecha. */
+  pan: StemPanMode;
   muted: boolean;
   solo: boolean;
   mimeType: string;

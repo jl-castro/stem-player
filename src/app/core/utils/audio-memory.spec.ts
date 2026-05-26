@@ -1,8 +1,9 @@
+import type { StemTrack } from '../models';
 import { estimateDecodedRamBytes, formatBytes, getRamBlockThresholdBytes, RAM_BLOCK_BYTES } from './audio-memory';
 
 describe('audio-memory', () => {
   it('estimateDecodedRamBytes sums track durations', () => {
-    const tracks = [
+    const tracks: StemTrack[] = [
       {
         id: 'a',
         durationMs: 60_000,
@@ -11,6 +12,7 @@ describe('audio-memory', () => {
         color: '',
         order: 0,
         volume: 1,
+        pan: 'center',
         muted: false,
         solo: false,
         mimeType: '',
