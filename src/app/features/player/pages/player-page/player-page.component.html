@@ -40,54 +40,61 @@
       <p class="loading-hint" role="status">Guardando orden de pistas…</p>
     }
 
-    <section
-      class="track-list"
-      aria-label="Pistas"
-      cdkDropList
-      cdkDropListOrientation="vertical"
-      [cdkDropListDisabled]="trackListDisabled()"
-      (cdkDropListDropped)="onTrackDrop($event)"
-    >
-      @if (pageLoading()) {
-        <p class="loading-hint loading-hint--pulse" role="status">Cargando pistas y audio…</p>
-      } @else {
-        @for (track of playback.loadedProject()?.tracks ?? []; track track.id) {
-          <article
-            class="track-row"
-            cdkDrag
-            [cdkDragDisabled]="trackListDisabled()"
-            [ngClass]="{
-              'track-row--muted': track.muted,
-              'track-row--solo': track.solo,
-              'track-row--inactive': !playback.hasStemAudio(track.id),
-            }"
-          >
-            <button
-              type="button"
-              class="drag-handle"
-              cdkDragHandle
-              [attr.aria-label]="'Reordenar ' + track.displayName"
-              [disabled]="trackListDisabled()"
+    <div class="mixer-wrap">
+      <section
+        class="mixer-strip track-list"
+        aria-label="Mezclador de pistas"
+        cdkDropList
+        cdkDropListOrientation="horizontal"
+        [cdkDropListDisabled]="trackListDisabled()"
+        (cdkDropListDropped)="onTrackDrop($event)"
+      >
+        @if (pageLoading()) {
+          <p class="loading-hint loading-hint--pulse mixer-strip__message" role="status">
+            Cargando pistas y audio…
+          </p>
+        } @else {
+          @for (track of playback.loadedProject()?.tracks ?? []; track track.id) {
+            <article
+              class="mixer-channel track-row"
+              cdkDrag
+              [cdkDragDisabled]="trackListDisabled()"
+              [ngClass]="{
+                'track-row--muted': track.muted,
+                'track-row--solo': track.solo,
+                'track-row--inactive': !playback.hasStemAudio(track.id),
+              }"
             >
-              <span class="drag-handle__grip" aria-hidden="true"></span>
-              <span class="sr-only">Arrastrar para reordenar</span>
-            </button>
-            <div
-              class="track-color"
-              [style.backgroundColor]="track.color"
-              aria-hidden="true"
-            ></div>
-            <div class="track-body">
-              <div class="track-names">
-                <span class="track-display" [title]="track.displayName">{{ track.displayName }}</span>
-                @if (!playback.hasStemAudio(track.id)) {
-                  <span class="track-badge">Sin audio</span>
-                }
-              </div>
-              <div class="track-controls">
+              <button
+                type="button"
+                class="drag-handle"
+                cdkDragHandle
+                [attr.aria-label]="'Reordenar ' + track.displayName"
+                [disabled]="trackListDisabled()"
+              >
+                <span class="drag-handle__grip" aria-hidden="true"></span>
+                <span class="sr-only">Arrastrar para reordenar</span>
+              </button>
+
+              <header class="mixer-channel__head">
+                <span
+                  class="mixer-channel__color"
+                  [style.backgroundColor]="track.color"
+                  aria-hidden="true"
+                ></span>
+                <div class="mixer-channel__titles">
+                  <span class="track-display" [title]="track.displayName">{{ track.displayName }}</span>
+                  <span class="track-file" [title]="track.fileName">{{ track.fileName }}</span>
+                  @if (!playback.hasStemAudio(track.id)) {
+                    <span class="track-badge">Sin audio</span>
+                  }
+                </div>
+              </header>
+
+              <div class="mixer-channel__ms">
                 <button
                   type="button"
-                  class="btn btn--mute"
+                  class="btn btn--mute btn--channel"
                   [attr.aria-pressed]="track.muted"
                   [attr.aria-label]="track.muted ? 'Quitar silencio de ' + track.displayName : 'Silenciar ' + track.displayName"
                   [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
@@ -97,7 +104,7 @@
                 </button>
                 <button
                   type="button"
-                  class="btn btn--solo"
+                  class="btn btn--solo btn--channel"
                   [attr.aria-pressed]="track.solo"
                   [attr.aria-label]="track.solo ? 'Quitar solo de ' + track.displayName : 'Solo ' + track.displayName"
                   [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
@@ -105,11 +112,14 @@
                 >
                   S
                 </button>
-                <label class="vol-label">
+              </div>
+
+              <div class="mixer-channel__fader">
+                <label class="fader-wrap">
                   <span class="sr-only">Volumen {{ track.displayName }}</span>
                   <input
                     type="range"
-                    class="vol-slider"
+                    class="vol-slider vol-slider--vertical"
                     min="0"
                     max="1"
                     step="0.01"
@@ -122,16 +132,16 @@
                   />
                 </label>
               </div>
-            </div>
-          </article>
-        } @empty {
-          <p class="empty-hint">
-            Este proyecto no tiene pistas.
-            <a routerLink="/projects" class="text-link">Vuelve a Proyectos</a> e importa archivos.
-          </p>
+            </article>
+          } @empty {
+            <p class="empty-hint mixer-strip__message">
+              Este proyecto no tiene pistas.
+              <a routerLink="/projects" class="text-link">Vuelve a Proyectos</a> e importa archivos.
+            </p>
+          }
         }
-      }
-    </section>
+      </section>
+    </div>
   </main>
 
   <footer class="transport-bar" aria-label="Controles de transporte">
