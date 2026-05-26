@@ -10,7 +10,6 @@ import {
   buildAssetKeysFingerprint,
 } from '../../../core/services/audio-session-cache.service';
 import { sha256HexFromBlob } from '../../../core/utils/blob-hash';
-import { estimateDecodedRamBytes, formatBytes, getRamBlockThresholdBytes } from '../../../core/utils/audio-memory';
 import {
   recalculateTrackOrders,
   reorderTracksInPlace,
@@ -34,15 +33,6 @@ export interface LoadProgress {
   label: string;
 }
 
-export type RamHealthLevel = 'good' | 'warn' | 'danger';
-
-export interface RamHealth {
-  level: RamHealthLevel;
-  estimateBytes: number;
-  thresholdBytes: number;
-  title: string;
-}
-
 @Injectable({ providedIn: 'root' })
 export class PlayerPlaybackService implements PlayerPlaybackPort {
   private readonly engine = inject(AudioEngineService);
@@ -54,7 +44,6 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
   readonly loadedProject = signal<Project | null>(null);
   readonly loadSummary = signal<string | null>(null);
   readonly loadProgress = signal<LoadProgress | null>(null);
-  readonly ramHealth = signal<RamHealth | null>(null);
   readonly reorderSaving = signal(false);
   readonly reorderError = signal<string | null>(null);
   readonly liveMode = signal(this.readLiveModePreference());
@@ -82,7 +71,6 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
   async loadProject(project: Readonly<Project>): Promise<void> {
     this.stopRafLoop();
     this.loadProgress.set(null);
-    this.ramHealth.set(null);
     this.reorderSaving.set(false);
     this.reorderError.set(null);
 
@@ -116,7 +104,6 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       this.loadedProject.set(null);
       this.loadSummary.set(null);
       this.loadProgress.set(null);
-      this.ramHealth.set(null);
       this.state.set({
         ...createInitialPlayerState(),
         projectId: project.id,
@@ -141,26 +128,6 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       );
       return;
     }
-
-    const durationMap = new Map<string, number>();
-    for (const t of copy.tracks) {
-      if (t.durationMs > 0) {
-        durationMap.set(t.id, t.durationMs);
-      }
-    }
-    const ramEstimate = estimateDecodedRamBytes(copy.tracks, durationMap);
-    const ramBlockThreshold = getRamBlockThresholdBytes();
-    const aboveRamThreshold = ramEstimate >= ramBlockThreshold;
-
-    const warnThreshold = Math.round(ramBlockThreshold * 0.7);
-    const level: RamHealthLevel =
-      ramEstimate >= ramBlockThreshold ? 'danger' : ramEstimate >= warnThreshold ? 'warn' : 'good';
-    this.ramHealth.set({
-      level,
-      estimateBytes: ramEstimate,
-      thresholdBytes: ramBlockThreshold,
-      title: `RAM estimada: ${formatBytes(ramEstimate)} (umbral: ${formatBytes(ramBlockThreshold)})`,
-    });
 
     const buffers = new Map<string, AudioBuffer>();
     const issues: string[] = [];
@@ -305,9 +272,6 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     });
 
     const summaryParts: string[] = [];
-    if (aboveRamThreshold) {
-      summaryParts.push(`Proyecto grande (~${formatBytes(ramEstimate)} en RAM estimada).`);
-    }
     const missingKey = copy.tracks.filter((t) => !t.storedAssetKey);
     if (missingKey.length > 0) {
       summaryParts.push(
