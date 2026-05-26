@@ -1,4 +1,5 @@
 @use 'app/shared/ui/tokens';
+@use 'app/shared/ui/components';
 
 *,
 *::before,
@@ -13,8 +14,38 @@ html {
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
   background-color: var(--sp-bg);
   color: var(--sp-text);
   color-scheme: dark;
+}
+
+a {
+  touch-action: manipulation;
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--sp-space-md);
+  top: -3rem;
+  z-index: 1000;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--sp-radius-md);
+  background: var(--sp-text);
+  color: var(--sp-on-accent);
+  font-weight: 600;
+  text-decoration: none;
+
+  &:focus {
+    top: var(--sp-space-md);
+    outline: none;
+    box-shadow: var(--sp-focus-ring);
+  }
 }

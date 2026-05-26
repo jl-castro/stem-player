@@ -2,14 +2,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   inject,
   signal,
   viewChild,
-  ElementRef,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import type { Project } from '../../../../core/models';
+import { sortTracksByOrder } from '../../../../core/utils/track-order.util';
 import { ProjectImportService } from '../../services/project-import.service';
 import { ProjectStorageService } from '../../services/project-storage.service';
 
@@ -26,6 +27,7 @@ export class ProjectsPageComponent {
   private readonly importService = inject(ProjectImportService);
 
   readonly projects = signal<readonly Project[]>([]);
+  readonly listLoading = signal(true);
   readonly listError = signal<string | null>(null);
 
   readonly newProjectName = signal('');
@@ -37,16 +39,21 @@ export class ProjectsPageComponent {
   readonly createPhaseMessage = computed(() => {
     switch (this.createPhase()) {
       case 'decoding':
-        return 'Analizando archivos y midiendo duración…';
+        return 'Analizando archivos…';
       case 'persisting':
-        return 'Guardando audio en el dispositivo…';
+        return 'Guardando en el dispositivo…';
       default:
         return '';
     }
   });
 
+  readonly showCreateHint = computed(
+    () => !this.isCreating() && (this.createDisabled() || this.createError() !== null),
+  );
+
   readonly renamingId = signal<string | null>(null);
   readonly renameDraft = signal('');
+  readonly renameError = signal<string | null>(null);
 
   private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
@@ -55,12 +62,20 @@ export class ProjectsPageComponent {
   }
 
   async refreshProjects(): Promise<void> {
+    this.listLoading.set(true);
     this.listError.set(null);
     try {
       const list = await this.storage.listProjects();
-      this.projects.set(list);
+      this.projects.set(
+        list.map((p) => ({
+          ...p,
+          tracks: sortTracksByOrder(p.tracks),
+        })),
+      );
     } catch (e) {
       this.listError.set(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.listLoading.set(false);
     }
   }
 
@@ -85,6 +100,9 @@ export class ProjectsPageComponent {
   }
 
   async onCreateProject(): Promise<void> {
+    if (this.createDisabled()) {
+      return;
+    }
     this.createError.set(null);
     this.createPhase.set('decoding');
     this.isCreating.set(true);
@@ -114,6 +132,7 @@ export class ProjectsPageComponent {
   }
 
   startRename(project: Project): void {
+    this.renameError.set(null);
     this.renamingId.set(project.id);
     this.renameDraft.set(project.name);
   }
@@ -121,26 +140,30 @@ export class ProjectsPageComponent {
   cancelRename(): void {
     this.renamingId.set(null);
     this.renameDraft.set('');
+    this.renameError.set(null);
   }
 
   onRenameDraftInput(ev: Event): void {
     this.renameDraft.set((ev.target as HTMLInputElement).value);
+    this.renameError.set(null);
   }
 
   async confirmRename(projectId: string): Promise<void> {
     const name = this.renameDraft().trim();
     if (!name) {
+      this.renameError.set('El nombre no puede estar vacío.');
       return;
     }
     if (this.isCreating()) {
       return;
     }
+    this.renameError.set(null);
     try {
       await this.storage.renameProject(projectId, name);
       this.cancelRename();
       await this.refreshProjects();
     } catch (e) {
-      this.listError.set(e instanceof Error ? e.message : String(e));
+      this.renameError.set(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -148,13 +171,16 @@ export class ProjectsPageComponent {
     if (this.isCreating()) {
       return;
     }
-    const ok = window.confirm(`¿Eliminar el proyecto "${project.name}"? Esta acción no se puede deshacer.`);
+    const ok = window.confirm(`¿Eliminar «${project.name}»? No se puede deshacer.`);
     if (!ok) {
       return;
     }
     this.listError.set(null);
     try {
       await this.storage.deleteProject(project.id);
+      if (this.renamingId() === project.id) {
+        this.cancelRename();
+      }
       await this.refreshProjects();
     } catch (e) {
       this.listError.set(e instanceof Error ? e.message : String(e));

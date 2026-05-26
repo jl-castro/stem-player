@@ -1,6 +1,3 @@
-// Tokens dark compartidos (Projects, Player, shell).
-$space-page: 1rem;
-
 :root {
   color-scheme: dark;
 
@@ -14,9 +11,15 @@ $space-page: 1rem;
   --sp-text-muted: #7d8590;
   --sp-input-bg: #010409;
   --sp-accent: #58a6ff;
+  --sp-accent-hover: #79c0ff;
   --sp-accent-muted: #388bfd;
   --sp-on-accent: #0d1117;
-  --sp-danger: #f85149;
+  --sp-success-text: #7ee787;
+  --sp-success-bg: rgba(46, 160, 67, 0.15);
+  --sp-success-border: rgba(46, 160, 67, 0.4);
+  --sp-warning-text: #e3b341;
+  --sp-warning-bg: rgba(210, 153, 34, 0.15);
+  --sp-warning-border: rgba(210, 153, 34, 0.35);
   --sp-danger-text: #ffa198;
   --sp-danger-bg: rgba(248, 81, 73, 0.15);
   --sp-danger-border: rgba(248, 81, 73, 0.4);
@@ -26,4 +29,18 @@ $space-page: 1rem;
   --sp-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 4px 14px rgba(0, 0, 0, 0.4);
   --sp-btn-disabled-bg: #21262d;
   --sp-btn-disabled-text: #9aa4b2;
+  --sp-focus-ring: 0 0 0 2px rgba(56, 139, 253, 0.45);
+
+  --sp-space-xs: 0.25rem;
+  --sp-space-sm: 0.5rem;
+  --sp-space-md: 0.75rem;
+  --sp-space-lg: 1rem;
+  --sp-radius-sm: 0.35rem;
+  --sp-radius-md: 0.5rem;
+  --sp-radius-lg: 0.75rem;
+  --sp-touch-min: 2.75rem;
+  --sp-page-max: 32rem;
+  --sp-motion-fast: 150ms;
+  --sp-motion-normal: 220ms;
+  --sp-ease-out: cubic-bezier(0, 0, 0.2, 1);
 }

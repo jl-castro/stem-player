@@ -6,129 +6,195 @@
     } @else {
       <h1 class="project-title">Reproductor</h1>
     }
-    <p class="status-line" [attr.data-status]="combinedStatus()">
+    <p class="status-line" [attr.data-status]="combinedStatus()" aria-live="polite">
       <span class="status-badge">{{ statusLabel() }}</span>
+      @if (wakeLock.active()) {
+        <span class="wake-lock-hint wake-lock-hint--active">Pantalla activa</span>
+      } @else if (showWakeLockUnavailable()) {
+        <span class="wake-lock-hint wake-lock-hint--muted">Pantalla no bloqueada</span>
+      }
     </p>
     @if (!pageLoading() && hasInactiveStems()) {
-      <p class="hint">Las pistas marcadas «Sin audio» no tienen archivo en este dispositivo; el resto se reproduce sincronizado.</p>
+      <p class="hint">Las pistas «Sin audio» no tienen archivo en este dispositivo.</p>
     }
   </header>
 
-  @if (pageError(); as err) {
-    <div class="banner banner--error" role="alert">{{ err }}</div>
-  }
-
-  @if (playback.state().errorMessage && !pageError()) {
-    <div class="banner banner--error" role="alert">{{ playback.state().errorMessage }}</div>
-  }
-
-  @if (playback.loadSummary(); as hint) {
-    <div class="banner banner--info" role="status">{{ hint }}</div>
-  }
-
-  <section class="track-list" aria-label="Pistas">
-    @for (track of playback.loadedProject()?.tracks ?? []; track track.id) {
-      <article
-        class="track-row"
-        [ngClass]="{
-          'track-row--muted': track.muted,
-          'track-row--solo': track.solo,
-          'track-row--inactive': !playback.hasStemAudio(track.id),
-        }"
-      >
-        <div
-          class="track-color"
-          [style.backgroundColor]="track.color"
-          aria-hidden="true"
-        ></div>
-        <div class="track-body">
-          <div class="track-names">
-            <span class="track-display">{{ track.displayName }}</span>
-            <span class="track-file">{{ track.fileName }}</span>
-            @if (!playback.hasStemAudio(track.id)) {
-              <span class="track-badge">Sin audio</span>
-            }
-          </div>
-          <div class="track-controls">
-            <button
-              type="button"
-              class="btn btn--mute"
-              [attr.aria-pressed]="track.muted"
-              [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
-              [title]="!playback.hasStemAudio(track.id) ? 'Sin archivo en almacén local' : 'Mute'"
-              (click)="playback.toggleTrackMute(track.id)"
-            >
-              M
-            </button>
-            <button
-              type="button"
-              class="btn btn--solo"
-              [attr.aria-pressed]="track.solo"
-              [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
-              [title]="!playback.hasStemAudio(track.id) ? 'Sin archivo en almacén local' : 'Solo'"
-              (click)="playback.toggleTrackSolo(track.id)"
-            >
-              S
-            </button>
-            <label class="vol-label">
-              <span class="sr-only">Volumen {{ track.displayName }}</span>
-              <input
-                type="range"
-                class="vol-slider"
-                min="0"
-                max="1"
-                step="0.01"
-                [value]="track.volume"
-                [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
-                [style.--track-accent]="track.color"
-                (input)="
-                  playback.setTrackVolume(track.id, $any($event.target).valueAsNumber)
-                "
-              />
-            </label>
-          </div>
-        </div>
-      </article>
-    } @empty {
-      @if (!pageLoading()) {
-        <p class="empty-hint">
-          No hay pistas en este proyecto, o todavía se está cargando. Si acabas de abrir el enlace, espera un momento;
-          si el proyecto está vacío, vuelve a Proyectos e importa archivos.
-        </p>
-      }
+  <main id="main-content" class="player-body" tabindex="-1">
+    @if (pageError(); as err) {
+      <div class="banner banner--error" role="alert">{{ err }}</div>
     }
-  </section>
+
+    @if (playback.state().errorMessage && !pageError()) {
+      <div class="banner banner--error" role="alert">{{ playback.state().errorMessage }}</div>
+    }
+
+    @if (playback.loadSummary(); as hint) {
+      <div class="banner banner--info" role="status">{{ hint }}</div>
+    }
+
+    @if (playback.reorderError(); as reorderErr) {
+      <div class="banner banner--error banner--compact" role="alert">{{ reorderErr }}</div>
+    }
+
+    @if (playback.reorderSaving()) {
+      <p class="loading-hint" role="status">Guardando orden de pistas…</p>
+    }
+
+    <section
+      class="track-list"
+      aria-label="Pistas"
+      cdkDropList
+      cdkDropListOrientation="vertical"
+      [cdkDropListDisabled]="trackListDisabled()"
+      (cdkDropListDropped)="onTrackDrop($event)"
+    >
+      @if (pageLoading()) {
+        <p class="loading-hint loading-hint--pulse" role="status">Cargando pistas y audio…</p>
+      } @else {
+        @for (track of playback.loadedProject()?.tracks ?? []; track track.id) {
+          <article
+            class="track-row"
+            cdkDrag
+            [cdkDragDisabled]="trackListDisabled()"
+            [ngClass]="{
+              'track-row--muted': track.muted,
+              'track-row--solo': track.solo,
+              'track-row--inactive': !playback.hasStemAudio(track.id),
+            }"
+          >
+            <button
+              type="button"
+              class="drag-handle"
+              cdkDragHandle
+              [attr.aria-label]="'Reordenar ' + track.displayName"
+              [disabled]="trackListDisabled()"
+            >
+              <span class="drag-handle__grip" aria-hidden="true"></span>
+              <span class="sr-only">Arrastrar para reordenar</span>
+            </button>
+            <div
+              class="track-color"
+              [style.backgroundColor]="track.color"
+              aria-hidden="true"
+            ></div>
+            <div class="track-body">
+              <div class="track-names">
+                <span class="track-display" [title]="track.displayName">{{ track.displayName }}</span>
+                @if (!playback.hasStemAudio(track.id)) {
+                  <span class="track-badge">Sin audio</span>
+                }
+              </div>
+              <div class="track-controls">
+                <button
+                  type="button"
+                  class="btn btn--mute"
+                  [attr.aria-pressed]="track.muted"
+                  [attr.aria-label]="track.muted ? 'Quitar silencio de ' + track.displayName : 'Silenciar ' + track.displayName"
+                  [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
+                  (click)="playback.toggleTrackMute(track.id)"
+                >
+                  M
+                </button>
+                <button
+                  type="button"
+                  class="btn btn--solo"
+                  [attr.aria-pressed]="track.solo"
+                  [attr.aria-label]="track.solo ? 'Quitar solo de ' + track.displayName : 'Solo ' + track.displayName"
+                  [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
+                  (click)="playback.toggleTrackSolo(track.id)"
+                >
+                  S
+                </button>
+                <label class="vol-label">
+                  <span class="sr-only">Volumen {{ track.displayName }}</span>
+                  <input
+                    type="range"
+                    class="vol-slider"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    [value]="track.volume"
+                    [disabled]="!playback.hasStemAudio(track.id) || pageLoading()"
+                    [style.--track-accent]="track.color"
+                    (input)="
+                      playback.setTrackVolume(track.id, $any($event.target).valueAsNumber)
+                    "
+                  />
+                </label>
+              </div>
+            </div>
+          </article>
+        } @empty {
+          <p class="empty-hint">
+            Este proyecto no tiene pistas.
+            <a routerLink="/projects" class="text-link">Vuelve a Proyectos</a> e importa archivos.
+          </p>
+        }
+      }
+    </section>
+  </main>
 
   <footer class="transport-bar" aria-label="Controles de transporte">
-    <div class="transport-times">
+    <div class="transport-times" aria-hidden="true">
       <span>{{ seekThumbMs() | formatMs }}</span>
       <span class="sep">/</span>
       <span>{{ playback.state().durationMs | formatMs }}</span>
     </div>
 
-    <input
-      type="range"
-      class="seek"
-      min="0"
-      [max]="seekMax()"
-      [value]="seekThumbMs()"
-      [disabled]="playback.state().durationMs <= 0 || playDisabled()"
-      (pointerdown)="onSeekPointerDown($event)"
-      (input)="onSeekInput($event)"
-      (pointerup)="onSeekPointerUp()"
-      (pointercancel)="onSeekPointerUp()"
-    />
+    <label class="seek-label">
+      <span class="sr-only">Posición de reproducción</span>
+      <input
+        type="range"
+        class="seek"
+        [class.seek--scrubbing]="isScrubbing()"
+        min="0"
+        [max]="seekMax()"
+        [value]="seekThumbMs()"
+        [disabled]="seekDisabled()"
+        [attr.aria-valuemin]="0"
+        [attr.aria-valuemax]="seekMax()"
+        [attr.aria-valuenow]="seekThumbMs()"
+        [attr.aria-valuetext]="seekAriaValueText()"
+        (pointerdown)="onSeekPointerDown($event)"
+        (input)="onSeekInput($event)"
+        (pointerup)="onSeekPointerUp()"
+        (pointercancel)="onSeekPointerUp()"
+        (lostpointercapture)="onSeekPointerUp()"
+      />
+    </label>
 
     <div class="transport-row">
-      <button type="button" class="btn btn--primary" [disabled]="playDisabled()" (click)="togglePlayPause()">
+      <button
+        type="button"
+        class="btn btn--primary btn--transport-main"
+        [disabled]="playDisabled()"
+        [attr.aria-label]="playback.state().status === 'playing' ? 'Pausar reproducción' : 'Reproducir'"
+        (click)="togglePlayPause()"
+      >
         @if (playback.state().status === 'playing') {
-          Pausa
+          Pausar
         } @else {
-          Play
+          Reproducir
         }
       </button>
-      <button type="button" class="btn" [disabled]="playDisabled()" (click)="playback.stop()">Stop</button>
-      <button type="button" class="btn" [disabled]="playDisabled()" (click)="playback.restart()">Restart</button>
+      <button
+        type="button"
+        class="btn"
+        [disabled]="playDisabled()"
+        aria-label="Detener reproducción"
+        (click)="playback.stop()"
+      >
+        Detener
+      </button>
+      <button
+        type="button"
+        class="btn"
+        [disabled]="playDisabled()"
+        aria-label="Reiniciar desde el inicio"
+        (click)="playback.restart()"
+      >
+        Reiniciar
+      </button>
     </div>
 
     <label class="master-row">
@@ -138,11 +204,10 @@
         min="0"
         max="1"
         step="0.01"
+        aria-label="Volumen master"
         [value]="playback.state().masterVolume"
         [disabled]="playDisabled()"
-        (input)="
-          playback.setMasterVolume($any($event.target).valueAsNumber)
-        "
+        (input)="playback.setMasterVolume($any($event.target).valueAsNumber)"
       />
     </label>
   </footer>

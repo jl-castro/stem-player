@@ -2,129 +2,162 @@
   <header class="page-header">
     <h1>Proyectos</h1>
     <p class="lede">
-      Crea un proyecto con stems locales (MP3, WAV o M4A) y ábrelo en el reproductor. Los archivos se guardan solo en
-      este dispositivo.
+      Importa stems locales (MP3, WAV o M4A) y ábrelos en el reproductor. Todo se guarda solo en este dispositivo.
     </p>
   </header>
 
-  @if (listError(); as err) {
-    <div class="banner banner--error" role="alert">{{ err }}</div>
-  }
-
-  <section class="card create-card" aria-labelledby="create-heading">
-    <h2 id="create-heading" class="card-title">Nuevo proyecto</h2>
-
-    <label class="field">
-      <span class="field-label">Nombre</span>
-      <input
-        type="text"
-        class="field-input"
-        placeholder="Ej. Ensayo 12 abril"
-        autocomplete="off"
-        [value]="newProjectName()"
-        (input)="onNewNameInput($event)"
-        [disabled]="isCreating()"
-      />
-    </label>
-
-    <label class="field">
-      <span class="field-label">Archivos (MP3, WAV, M4A)</span>
-      <input
-        #fileInput
-        type="file"
-        class="field-file"
-        accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
-        multiple
-        (change)="onFilesSelected($event)"
-        [disabled]="isCreating()"
-      />
-    </label>
-
-    @if (selectedFiles().length > 0) {
-      <p class="file-summary">{{ selectedFiles().length }} archivo(s) seleccionado(s)</p>
+  <main id="main-content" class="projects-main" tabindex="-1">
+    @if (listError(); as err) {
+      <div class="banner banner--error" role="alert">{{ err }}</div>
     }
 
-    @if (isCreating() && createPhaseMessage()) {
-      <p class="create-status" role="status">{{ createPhaseMessage() }}</p>
-    }
+    <section class="card create-card" aria-labelledby="create-heading">
+      <h2 id="create-heading" class="card-title">Nuevo proyecto</h2>
 
-    @if (createError(); as cErr) {
-      <div class="banner banner--error" role="alert">{{ cErr }}</div>
-    }
+      <label class="field" for="project-name">
+        <span class="field-label">Nombre</span>
+        <input
+          id="project-name"
+          type="text"
+          class="field-input"
+          placeholder="Ej. Ensayo 12 abril"
+          autocomplete="off"
+          [value]="newProjectName()"
+          (input)="onNewNameInput($event)"
+          [disabled]="isCreating()"
+        />
+      </label>
 
-    <p class="create-hint">Completa el nombre y elige al menos un archivo para habilitar la creación.</p>
+      <div class="field">
+        <label class="field-label" for="project-files">Archivos (MP3, WAV, M4A)</label>
+        <input
+          id="project-files"
+          #fileInput
+          type="file"
+          class="field-file"
+          accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
+          multiple
+          (change)="onFilesSelected($event)"
+          [disabled]="isCreating()"
+        />
+      </div>
 
-    <button
-      type="button"
-      class="btn btn--primary"
-      [disabled]="createDisabled()"
-      (click)="onCreateProject()"
-    >
-      @if (isCreating()) {
-        @if (createPhase() === 'decoding') {
-          Analizando…
-        } @else if (createPhase() === 'persisting') {
-          Guardando…
-        } @else {
-          Procesando…
-        }
-      } @else {
-        Crear proyecto
+      @if (selectedFiles().length > 0) {
+        <p class="file-summary" role="status">{{ selectedFiles().length }} archivo(s) seleccionado(s)</p>
       }
-    </button>
-  </section>
 
-  <section class="list-section" aria-labelledby="list-heading">
-    <h2 id="list-heading" class="section-title">Tus proyectos</h2>
+      @if (isCreating() && createPhaseMessage()) {
+        <p class="create-status loading-hint--pulse" role="status">{{ createPhaseMessage() }}</p>
+      }
 
-    @if (projects().length === 0) {
-      <p class="empty">Aún no hay proyectos. Usa el formulario de arriba para importar stems y guardar el primer ensayo.</p>
-    }
+      @if (createError(); as cErr) {
+        <div class="banner banner--error" role="alert">{{ cErr }}</div>
+      }
 
-    <ul class="project-list">
-      @for (project of projects(); track project.id) {
-        <li class="project-row">
-          @if (renamingId() === project.id) {
-            <div class="rename-block">
-              <input
-                type="text"
-                class="field-input"
-                [value]="renameDraft()"
-                (input)="onRenameDraftInput($event)"
-                (keydown.enter)="confirmRename(project.id)"
-                [disabled]="isCreating()"
-              />
-              <div class="rename-actions">
+      @if (showCreateHint()) {
+        <p class="create-hint" id="create-hint">Indica un nombre y al menos un archivo para crear el proyecto.</p>
+      }
+
+      <button
+        type="button"
+        class="btn btn--primary btn--block"
+        [disabled]="createDisabled()"
+        [attr.aria-busy]="isCreating()"
+        [attr.aria-describedby]="showCreateHint() ? 'create-hint' : null"
+        (click)="onCreateProject()"
+      >
+        @if (isCreating()) {
+          @if (createPhase() === 'decoding') {
+            Analizando…
+          } @else if (createPhase() === 'persisting') {
+            Guardando…
+          } @else {
+            Procesando…
+          }
+        } @else {
+          Crear proyecto
+        }
+      </button>
+    </section>
+
+    <section class="list-section" aria-labelledby="list-heading">
+      <h2 id="list-heading" class="section-title">Tus proyectos</h2>
+
+      @if (listLoading()) {
+        <p class="loading-hint loading-hint--pulse" role="status">Cargando proyectos…</p>
+      } @else if (projects().length === 0) {
+        <p class="empty">Aún no hay proyectos. Crea uno con el formulario de arriba.</p>
+      }
+
+      @if (renameError(); as rErr) {
+        <div class="banner banner--error banner--compact" role="alert">{{ rErr }}</div>
+      }
+
+      <ul class="project-list">
+        @for (project of projects(); track project.id) {
+          <li class="project-row">
+            @if (renamingId() === project.id) {
+              <div class="rename-block">
+                <label class="sr-only" [attr.for]="'rename-' + project.id">Nuevo nombre</label>
+                <input
+                  [id]="'rename-' + project.id"
+                  type="text"
+                  class="field-input"
+                  [value]="renameDraft()"
+                  (input)="onRenameDraftInput($event)"
+                  (keydown.enter)="confirmRename(project.id)"
+                  [disabled]="isCreating()"
+                />
+                <div class="rename-actions">
+                  <button
+                    type="button"
+                    class="btn btn--small"
+                    [disabled]="isCreating()"
+                    (click)="confirmRename(project.id)"
+                  >
+                    Guardar
+                  </button>
+                  <button type="button" class="btn btn--small btn--ghost" (click)="cancelRename()">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="project-main">
+                <span class="project-name">{{ project.name }}</span>
+                <span class="project-meta">{{ project.tracks.length }} pista(s)</span>
+              </div>
+              <div class="project-actions">
+                <a
+                  class="btn btn--primary btn--link"
+                  [routerLink]="['/player', project.id]"
+                  [attr.aria-label]="'Abrir proyecto ' + project.name"
+                >
+                  Abrir
+                </a>
                 <button
                   type="button"
-                  class="btn btn--small"
+                  class="btn"
                   [disabled]="isCreating()"
-                  (click)="confirmRename(project.id)"
+                  [attr.aria-label]="'Renombrar ' + project.name"
+                  (click)="startRename(project)"
                 >
-                  Guardar
+                  Renombrar
                 </button>
-                <button type="button" class="btn btn--small btn--ghost" (click)="cancelRename()">
-                  Cancelar
+                <button
+                  type="button"
+                  class="btn btn--danger"
+                  [disabled]="isCreating()"
+                  [attr.aria-label]="'Eliminar ' + project.name"
+                  (click)="onDeleteProject(project)"
+                >
+                  Eliminar
                 </button>
               </div>
-            </div>
-          } @else {
-            <div class="project-main">
-              <span class="project-name">{{ project.name }}</span>
-              <span class="project-meta">{{ project.tracks.length }} pista(s)</span>
-            </div>
-            <div class="project-actions">
-              <a class="btn btn--primary btn--link" [routerLink]="['/player', project.id]">Abrir</a>
-              <button type="button" class="btn" [disabled]="isCreating()" (click)="startRename(project)">
-                Renombrar
-              </button>
-              <button type="button" class="btn btn--danger" [disabled]="isCreating()" (click)="onDeleteProject(project)">
-                Eliminar
-              </button>
-            </div>
-          }
-        </li>
-      }
-    </ul>
-  </section>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  </main>
 </div>

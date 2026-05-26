@@ -1,16 +1,21 @@
 import { NgClass } from '@angular/common';
+import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
+  effect,
   inject,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { from, EMPTY } from 'rxjs';
+import { EMPTY, from } from 'rxjs';
 import { catchError, switchMap, tap } from 'rxjs/operators';
 
+import { ScreenWakeLockService } from '../../../../core/services/screen-wake-lock.service';
+import { formatMsAsMmSs } from '../../../../core/utils/format-time';
 import { FormatMsPipe } from '../../../../shared/pipes/format-ms.pipe';
 import { ProjectStorageService } from '../../../projects/services/project-storage.service';
 import { PlayerPlaybackService } from '../../services/player-playback.service';
@@ -18,24 +23,33 @@ import { PlayerPlaybackService } from '../../services/player-playback.service';
 @Component({
   selector: 'app-player-page',
   standalone: true,
-  imports: [NgClass, RouterLink, FormatMsPipe],
+  imports: [NgClass, RouterLink, FormatMsPipe, DragDropModule],
   templateUrl: './player-page.component.html',
   styleUrl: './player-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlayerPageComponent {
   readonly playback = inject(PlayerPlaybackService);
+  readonly wakeLock = inject(ScreenWakeLockService);
   private readonly storage = inject(ProjectStorageService);
   private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly pageLoading = signal(false);
   readonly pageError = signal<string | null>(null);
-
+  readonly isScrubbing = signal(false);
   readonly scrubMs = signal<number | null>(null);
+
   readonly seekThumbMs = computed(
     () => this.scrubMs() ?? this.playback.state().currentTimeMs,
   );
   readonly seekMax = computed(() => Math.max(1, this.playback.state().durationMs));
+
+  readonly seekAriaValueText = computed(() => {
+    const pos = formatMsAsMmSs(this.seekThumbMs());
+    const dur = formatMsAsMmSs(this.playback.state().durationMs);
+    return `${pos} de ${dur}`;
+  });
 
   readonly hasInactiveStems = computed(() => {
     const lp = this.playback.loadedProject();
@@ -45,7 +59,6 @@ export class PlayerPageComponent {
     return lp.tracks.some((t) => !this.playback.hasStemAudio(t.id));
   });
 
-  /** Combina carga de ruta + estados de playback para la UI (badge / `data-status`). */
   readonly combinedStatus = computed(() => {
     if (this.pageLoading()) {
       return 'loading';
@@ -59,28 +72,44 @@ export class PlayerPageComponent {
 
   readonly statusLabel = computed(() => {
     if (this.pageLoading()) {
-      return 'Cargando proyecto…';
+      return 'Cargando…';
     }
-    const key = this.combinedStatus();
     const map: Record<string, string> = {
-      loading: 'Cargando proyecto…',
+      loading: 'Cargando…',
       idle: 'Inactivo',
       ready: 'Listo',
       'ready-partial': 'Listo (parcial)',
       playing: 'Reproduciendo',
-      paused: 'Pausa',
+      paused: 'En pausa',
       stopped: 'Detenido',
       error: 'Error',
     };
-    return map[key] ?? String(key);
+    return map[this.combinedStatus()] ?? this.combinedStatus();
   });
 
+  readonly showWakeLockUnavailable = computed(
+    () =>
+      this.playback.state().status === 'playing' &&
+      (!this.wakeLock.supported() || this.wakeLock.error() !== null),
+  );
+
   constructor() {
+    effect(() => {
+      const shouldHold = this.playback.state().status === 'playing';
+      void this.wakeLock.setDesired(shouldHold);
+    });
+
+    this.destroyRef.onDestroy(() => {
+      void this.wakeLock.releaseLock();
+    });
+
     this.route.paramMap
       .pipe(
         tap(() => {
           this.pageLoading.set(true);
           this.pageError.set(null);
+          this.scrubMs.set(null);
+          this.isScrubbing.set(false);
           this.playback.clearLoadSummary();
         }),
         switchMap((pm) => {
@@ -121,16 +150,25 @@ export class PlayerPageComponent {
 
   onSeekPointerDown(ev: PointerEvent): void {
     const el = ev.target as HTMLInputElement;
+    this.isScrubbing.set(true);
     this.scrubMs.set(el.valueAsNumber);
+    el.setPointerCapture(ev.pointerId);
   }
 
   onSeekInput(ev: Event): void {
     const v = (ev.target as HTMLInputElement).valueAsNumber;
     this.scrubMs.set(v);
-    this.playback.seekTo(v);
   }
 
   onSeekPointerUp(): void {
+    if (!this.isScrubbing()) {
+      return;
+    }
+    const ms = this.scrubMs();
+    if (ms !== null) {
+      this.playback.seekTo(ms);
+    }
+    this.isScrubbing.set(false);
     this.scrubMs.set(null);
   }
 
@@ -150,5 +188,26 @@ export class PlayerPageComponent {
       !this.playback.state().canPlay ||
       this.playback.state().status === 'error'
     );
+  }
+
+  seekDisabled(): boolean {
+    return this.playDisabled() || this.playback.state().durationMs <= 0;
+  }
+
+  trackListDisabled(): boolean {
+    const tracks = this.playback.loadedProject()?.tracks;
+    return (
+      this.pageLoading() ||
+      this.playback.reorderSaving() ||
+      !tracks ||
+      tracks.length < 2
+    );
+  }
+
+  onTrackDrop(event: CdkDragDrop<unknown>): void {
+    if (event.previousIndex === event.currentIndex) {
+      return;
+    }
+    void this.playback.reorderTracks(event.previousIndex, event.currentIndex);
   }
 }

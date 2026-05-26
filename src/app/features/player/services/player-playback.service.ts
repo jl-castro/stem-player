@@ -4,6 +4,11 @@ import type { PlayerPlaybackPort } from '../../../core/contracts';
 import type { Project } from '../../../core/models';
 import { createInitialPlayerState, type PlayerState } from '../../../core/models';
 import { AudioEngineService } from '../../../core/services/audio-engine.service';
+import {
+  recalculateTrackOrders,
+  reorderTracksInPlace,
+  sortTracksByOrder,
+} from '../../../core/utils/track-order.util';
 import { ProjectStorageService } from '../../projects/services/project-storage.service';
 
 function cloneProject(p: Readonly<Project>): Project {
@@ -26,6 +31,9 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
   /** Avisos no bloqueantes tras una carga parcial (p. ej. pistas sin blob). */
   readonly loadSummary = signal<string | null>(null);
 
+  readonly reorderSaving = signal(false);
+  readonly reorderError = signal<string | null>(null);
+
   /** Copia mutable del proyecto cargado (volúmenes, mute, solo) alineada con el motor. */
   private project: Project | null = null;
 
@@ -40,6 +48,8 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     this.engine.reset();
     this.loadedProject.set(null);
     this.loadSummary.set(null);
+    this.reorderSaving.set(false);
+    this.reorderError.set(null);
 
     const fail = (message: string): void => {
       this.project = null;
@@ -63,6 +73,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     }
 
     const copy = cloneProject(project);
+    copy.tracks = sortTracksByOrder(copy.tracks);
     const tracksWithKey = copy.tracks.filter((t) => !!t.storedAssetKey);
     if (copy.tracks.length > 0 && tracksWithKey.length === 0) {
       fail(
@@ -155,12 +166,12 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     const missingKey = copy.tracks.filter((t) => !t.storedAssetKey);
     if (missingKey.length > 0) {
       summaryParts.push(
-        `${missingKey.length} pista(s) sin archivo guardado: no se reproducen. Importa stems desde Proyectos si falta audio.`,
+        `${missingKey.length} pista(s) sin archivo guardado. Importa de nuevo desde Proyectos si falta audio.`,
       );
     }
     if (issues.length > 0 && buffers.size < tracksWithKey.length) {
       summaryParts.push(
-        'Algunas pistas con archivo guardado no se pudieron cargar (revisa el mensaje de error o reimporta).',
+        'Algunas pistas no se pudieron cargar. Reimporta o revisa el almacén local del navegador.',
       );
     }
     this.loadSummary.set(summaryParts.length > 0 ? summaryParts.join(' ') : null);
@@ -276,9 +287,46 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     return this.loadedStemIds.has(trackId);
   }
 
+  /**
+   * Reordena pistas en memoria, persiste en Dexie y revierte la UI si falla el guardado.
+   * No afecta al motor de audio (los stems se identifican por `track.id`).
+   */
+  async reorderTracks(previousIndex: number, currentIndex: number): Promise<void> {
+    if (!this.project || previousIndex === currentIndex) {
+      return;
+    }
+    if (this.reorderSaving()) {
+      return;
+    }
+
+    const snapshot = cloneProject(this.project);
+    reorderTracksInPlace(this.project.tracks, previousIndex, currentIndex);
+    this.syncLoadedProjectView();
+
+    this.reorderSaving.set(true);
+    this.reorderError.set(null);
+
+    const updatedAt = new Date().toISOString();
+    this.project.updatedAt = updatedAt;
+
+    try {
+      await this.storage.saveProject(cloneProject(this.project));
+    } catch (e) {
+      this.project = snapshot;
+      recalculateTrackOrders(this.project.tracks);
+      this.syncLoadedProjectView();
+      this.reorderError.set(
+        e instanceof Error ? e.message : 'No se pudo guardar el orden de las pistas.',
+      );
+    } finally {
+      this.reorderSaving.set(false);
+    }
+  }
+
   /** Limpia avisos de carga parcial (p. ej. al cambiar de proyecto en la ruta). */
   clearLoadSummary(): void {
     this.loadSummary.set(null);
+    this.reorderError.set(null);
   }
 
   private syncLoadedProjectView(): void {
