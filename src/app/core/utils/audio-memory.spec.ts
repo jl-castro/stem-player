@@ -1,4 +1,4 @@
-import { estimateDecodedRamBytes, formatBytes, RAM_BLOCK_BYTES } from './audio-memory';
+import { estimateDecodedRamBytes, formatBytes, getRamBlockThresholdBytes, RAM_BLOCK_BYTES } from './audio-memory';
 
 describe('audio-memory', () => {
   it('estimateDecodedRamBytes sums track durations', () => {
@@ -31,5 +31,7 @@ describe('audio-memory', () => {
 
   it('defines block threshold', () => {
     expect(RAM_BLOCK_BYTES).toBeGreaterThan(0);
+    // En entorno de tests (sin deviceMemory disponible) cae en el valor base.
+    expect(getRamBlockThresholdBytes()).toBeGreaterThan(0);
   });
 });

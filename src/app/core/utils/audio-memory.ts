@@ -34,5 +34,21 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-/** Por encima de este umbral no se permite cargar el proyecto (evitar crash de pestaña). */
+/**
+ * Umbral base de bloqueo (~900 MB) pensado para escritorio.
+ * En tiempo de ejecución se ajusta con `getRamBlockThresholdBytes` según `navigator.deviceMemory`.
+ */
 export const RAM_BLOCK_BYTES = 900 * 1024 * 1024;
+
+/** Devuelve el umbral de RAM según la memoria del dispositivo reportada por el navegador. */
+export function getRamBlockThresholdBytes(): number {
+  const dm = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  if (typeof dm !== 'number' || !Number.isFinite(dm) || dm <= 0) {
+    return RAM_BLOCK_BYTES;
+  }
+  if (dm <= 1) return 300 * 1024 * 1024;   // móviles con 1 GB
+  if (dm <= 2) return 450 * 1024 * 1024;   // móviles con 2 GB
+  if (dm <= 4) return 650 * 1024 * 1024;   // gama media (4 GB)
+  if (dm <= 8) return 900 * 1024 * 1024;   // gama alta (8 GB)
+  return 1_200 * 1024 * 1024;              // escritorio con mucha RAM
+}

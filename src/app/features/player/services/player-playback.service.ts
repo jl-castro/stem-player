@@ -10,7 +10,7 @@ import {
   buildAssetKeysFingerprint,
 } from '../../../core/services/audio-session-cache.service';
 import { sha256HexFromBlob } from '../../../core/utils/blob-hash';
-import { estimateDecodedRamBytes, formatBytes, RAM_BLOCK_BYTES } from '../../../core/utils/audio-memory';
+import { estimateDecodedRamBytes, formatBytes, getRamBlockThresholdBytes } from '../../../core/utils/audio-memory';
 import {
   recalculateTrackOrders,
   reorderTracksInPlace,
@@ -134,9 +134,10 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       }
     }
     const ramEstimate = estimateDecodedRamBytes(copy.tracks, durationMap);
-    if (ramEstimate >= RAM_BLOCK_BYTES) {
+    const aboveRamThreshold = ramEstimate >= getRamBlockThresholdBytes();
+    if (aboveRamThreshold && this.liveMode()) {
       fail(
-        `Proyecto demasiado pesado (~${formatBytes(ramEstimate)} estimados en RAM). Reduce pistas o duración.`,
+        `Proyecto demasiado pesado (~${formatBytes(ramEstimate)} estimados en RAM) para Modo en vivo. Desactiva Modo en vivo o reduce pistas/duración.`,
       );
       return;
     }
@@ -281,6 +282,11 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     });
 
     const summaryParts: string[] = [];
+    if (aboveRamThreshold) {
+      summaryParts.push(
+        `Proyecto grande (~${formatBytes(ramEstimate)} en RAM estimada). Puede volverse inestable en móvil.`,
+      );
+    }
     const missingKey = copy.tracks.filter((t) => !t.storedAssetKey);
     if (missingKey.length > 0) {
       summaryParts.push(
