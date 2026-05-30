@@ -12,6 +12,7 @@ import { RouterLink } from '@angular/router';
 import type { Project } from '../../../../core/models';
 import {
   LucideCheck,
+  LucideList,
   LucidePencil,
   LucideTrash2,
   LucideUpload,
@@ -24,7 +25,7 @@ import { ProjectStorageService } from '../../services/project-storage.service';
 @Component({
   selector: 'app-projects-page',
   standalone: true,
-  imports: [RouterLink, LucidePencil, LucideTrash2, LucideUpload, LucideCheck, LucideX],
+  imports: [RouterLink, LucideList, LucidePencil, LucideTrash2, LucideUpload, LucideCheck, LucideX],
   templateUrl: './projects-page.component.html',
   styleUrl: './projects-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,7 +63,24 @@ export class ProjectsPageComponent {
   readonly renameDraft = signal('');
   readonly renameError = signal<string | null>(null);
 
+  readonly editingTracksId = signal<string | null>(null);
+  readonly tracksBusy = signal(false);
+  readonly tracksPhase = signal<'idle' | 'decoding' | 'persisting'>('idle');
+  readonly tracksError = signal<string | null>(null);
+
+  readonly tracksPhaseMessage = computed(() => {
+    switch (this.tracksPhase()) {
+      case 'decoding':
+        return 'Analizando archivos…';
+      case 'persisting':
+        return 'Guardando en el dispositivo…';
+      default:
+        return '';
+    }
+  });
+
   private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
+  private readonly addTracksInput = viewChild<ElementRef<HTMLInputElement>>('addTracksInput');
 
   constructor() {
     void this.refreshProjects();
@@ -133,13 +151,101 @@ export class ProjectsPageComponent {
   createDisabled(): boolean {
     return (
       this.isCreating() ||
+      this.tracksBusy() ||
       !this.newProjectName().trim() ||
       this.selectedFiles().length === 0
     );
   }
 
+  pageBusy(): boolean {
+    return this.isCreating() || this.tracksBusy();
+  }
+
+  startEditTracks(project: Project): void {
+    if (this.pageBusy()) {
+      return;
+    }
+    this.tracksError.set(null);
+    this.cancelRename();
+    this.editingTracksId.set(project.id);
+  }
+
+  cancelEditTracks(): void {
+    this.editingTracksId.set(null);
+    this.tracksError.set(null);
+    this.tracksPhase.set('idle');
+    const el = this.addTracksInput()?.nativeElement;
+    if (el) {
+      el.value = '';
+    }
+  }
+
+  async onAddTracksSelected(ev: Event, projectId: string): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if (!files.length || this.pageBusy()) {
+      return;
+    }
+
+    this.tracksError.set(null);
+    this.tracksPhase.set('decoding');
+    this.tracksBusy.set(true);
+    try {
+      await this.importService.addTracksToProject(projectId, files, (phase) =>
+        this.tracksPhase.set(phase),
+      );
+      await this.refreshProjects();
+    } catch (e) {
+      this.tracksError.set(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.tracksBusy.set(false);
+      this.tracksPhase.set('idle');
+    }
+  }
+
+  async onRemoveTrack(project: Project, trackId: string): Promise<void> {
+    if (this.pageBusy()) {
+      return;
+    }
+
+    const track = project.tracks.find((t) => t.id === trackId);
+    if (!track) {
+      return;
+    }
+
+    const ok = window.confirm(`¿Quitar «${track.displayName}» de «${project.name}»?`);
+    if (!ok) {
+      return;
+    }
+
+    this.tracksError.set(null);
+    this.tracksBusy.set(true);
+    try {
+      await this.importService.removeTrackFromProject(project.id, trackId);
+      await this.refreshProjects();
+    } catch (e) {
+      this.tracksError.set(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.tracksBusy.set(false);
+    }
+  }
+
+  canRemoveTrack(project: Project, trackId: string): boolean {
+    const tracksWithAudio = project.tracks.filter((t) => t.storedAssetKey);
+    const target = project.tracks.find((t) => t.id === trackId);
+    if (!target?.storedAssetKey) {
+      return true;
+    }
+    return tracksWithAudio.length > 1;
+  }
+
   startRename(project: Project): void {
+    if (this.pageBusy()) {
+      return;
+    }
     this.renameError.set(null);
+    this.cancelEditTracks();
     this.renamingId.set(project.id);
     this.renameDraft.set(project.name);
   }
@@ -161,7 +267,7 @@ export class ProjectsPageComponent {
       this.renameError.set('El nombre no puede estar vacío.');
       return;
     }
-    if (this.isCreating()) {
+    if (this.pageBusy()) {
       return;
     }
     this.renameError.set(null);
@@ -175,7 +281,7 @@ export class ProjectsPageComponent {
   }
 
   async onDeleteProject(project: Project): Promise<void> {
-    if (this.isCreating()) {
+    if (this.pageBusy()) {
       return;
     }
     const ok = window.confirm(`¿Eliminar «${project.name}»? No se puede deshacer.`);
@@ -187,6 +293,9 @@ export class ProjectsPageComponent {
       await this.storage.deleteProject(project.id);
       if (this.renamingId() === project.id) {
         this.cancelRename();
+      }
+      if (this.editingTracksId() === project.id) {
+        this.cancelEditTracks();
       }
       await this.refreshProjects();
     } catch (e) {

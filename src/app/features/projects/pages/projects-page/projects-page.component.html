@@ -18,7 +18,7 @@
         autocomplete="off"
         [value]="newProjectName()"
         (input)="onNewNameInput($event)"
-        [disabled]="isCreating()"
+        [disabled]="pageBusy()"
       />
 
       <div class="create-row">
@@ -32,7 +32,7 @@
             multiple
             aria-label="Archivos de audio"
             (change)="onFilesSelected($event)"
-            [disabled]="isCreating()"
+            [disabled]="pageBusy()"
           />
           <label class="file-picker" for="project-files">
             <svg lucideUpload [size]="18" aria-hidden="true"></svg>
@@ -85,9 +85,14 @@
         <div class="banner banner--error banner--compact" role="alert">{{ rErr }}</div>
       }
 
+      @if (tracksError(); as tErr) {
+        <div class="banner banner--error banner--compact" role="alert">{{ tErr }}</div>
+      }
+
       <ul class="project-list">
         @for (project of projects(); track project.id) {
-          <li class="project-row">
+          <li class="project-item">
+            <div class="project-row">
             @if (renamingId() === project.id) {
               <div class="rename-block">
                 <label class="sr-only" [attr.for]="'rename-' + project.id">Nuevo nombre</label>
@@ -98,14 +103,14 @@
                   [value]="renameDraft()"
                   (input)="onRenameDraftInput($event)"
                   (keydown.enter)="confirmRename(project.id)"
-                  [disabled]="isCreating()"
+                  [disabled]="pageBusy()"
                 />
                 <div class="rename-actions">
                   <button
                     type="button"
                     class="btn btn--small btn--primary btn--icon btn--icon-only"
-                    [disabled]="isCreating()"
-                    aria-label="Guardar nombre"
+                  [disabled]="pageBusy()"
+                  aria-label="Guardar nombre"
                     (click)="confirmRename(project.id)"
                   >
                     <svg lucideCheck [size]="18"></svg>
@@ -133,7 +138,18 @@
                 <button
                   type="button"
                   class="btn btn--small btn--icon btn--icon-only"
-                  [disabled]="isCreating()"
+                  [class.btn--active]="editingTracksId() === project.id"
+                  [disabled]="pageBusy()"
+                  [attr.aria-label]="'Editar pistas de ' + project.name"
+                  [attr.aria-expanded]="editingTracksId() === project.id"
+                  (click)="editingTracksId() === project.id ? cancelEditTracks() : startEditTracks(project)"
+                >
+                  <svg lucideList [size]="18"></svg>
+                </button>
+                <button
+                  type="button"
+                  class="btn btn--small btn--icon btn--icon-only"
+                  [disabled]="pageBusy()"
                   [attr.aria-label]="'Renombrar ' + project.name"
                   (click)="startRename(project)"
                 >
@@ -142,12 +158,78 @@
                 <button
                   type="button"
                   class="btn btn--small btn--danger btn--icon btn--icon-only"
-                  [disabled]="isCreating()"
+                  [disabled]="pageBusy()"
                   [attr.aria-label]="'Eliminar ' + project.name"
                   (click)="onDeleteProject(project)"
                 >
                   <svg lucideTrash2 [size]="18"></svg>
                 </button>
+              </div>
+            }
+            </div>
+
+            @if (editingTracksId() === project.id) {
+              <div class="tracks-editor" [attr.aria-busy]="tracksBusy()">
+                <div class="tracks-editor__head">
+                  <p class="tracks-editor__title">Pistas de «{{ project.name }}»</p>
+                  <button
+                    type="button"
+                    class="btn btn--small btn--ghost"
+                    [disabled]="tracksBusy()"
+                    (click)="cancelEditTracks()"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+
+                <ul class="tracks-list">
+                  @for (track of project.tracks; track track.id) {
+                    <li class="tracks-list__row">
+                      <span
+                        class="tracks-list__color"
+                        [style.backgroundColor]="track.color"
+                        aria-hidden="true"
+                      ></span>
+                      <span class="tracks-list__name" [title]="track.fileName">{{ track.displayName }}</span>
+                      @if (!track.storedAssetKey) {
+                        <span class="tracks-list__badge">Sin audio</span>
+                      }
+                      <button
+                        type="button"
+                        class="btn btn--small btn--danger btn--icon btn--icon-only"
+                        [disabled]="tracksBusy() || !canRemoveTrack(project, track.id)"
+                        [attr.aria-label]="'Quitar ' + track.displayName"
+                        (click)="onRemoveTrack(project, track.id)"
+                      >
+                        <svg lucideTrash2 [size]="16"></svg>
+                      </button>
+                    </li>
+                  }
+                </ul>
+
+                <div class="tracks-editor__add field field--file">
+                  <input
+                    #addTracksInput
+                    [id]="'add-tracks-' + project.id"
+                    type="file"
+                    class="field-file"
+                    accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
+                    multiple
+                    aria-label="Añadir stems al proyecto"
+                    [disabled]="tracksBusy()"
+                    (change)="onAddTracksSelected($event, project.id)"
+                  />
+                  <label class="file-picker file-picker--compact" [attr.for]="'add-tracks-' + project.id">
+                    <svg lucideUpload [size]="16" aria-hidden="true"></svg>
+                    <span class="file-picker__text">Añadir stems</span>
+                  </label>
+                </div>
+
+                @if (tracksBusy() && tracksPhaseMessage()) {
+                  <p class="tracks-editor__status loading-hint loading-hint--pulse" role="status">
+                    {{ tracksPhaseMessage() }}
+                  </p>
+                }
               </div>
             }
           </li>

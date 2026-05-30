@@ -39,7 +39,7 @@ export class ProjectStorageService implements ProjectStoragePort {
   }
 
   async saveProject(project: Project): Promise<void> {
-    await this.db.transaction('rw', this.db.projects, this.db.trackAssets, async () => {
+    await this.db.transaction('rw', this.db.projects, this.db.trackAssets, this.db.decodedCaches, async () => {
       const existing = await this.db.projects.get(project.id);
       await this.assertTrackAssetsConsistent(project);
 
