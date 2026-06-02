@@ -216,6 +216,7 @@ export class PlayerPageComponent {
           this.scrubMs.set(null);
           this.isScrubbing.set(false);
           this.playback.clearLoadSummary();
+          this.resetMixerScrollMetrics();
         }),
         switchMap((pm) => {
           const projectId = pm.get('projectId');
@@ -238,7 +239,9 @@ export class PlayerPageComponent {
                     this.pageError.set(st.errorMessage ?? 'No se pudo preparar el audio.');
                   }
                   this.pageLoading.set(false);
-                  requestAnimationFrame(() => this.refreshMixerScrollMetrics());
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => this.refreshMixerScrollMetrics());
+                  });
                 }),
               );
             }),
@@ -399,13 +402,21 @@ export class PlayerPageComponent {
     this.playback.setTrackPan(trackId, mode);
   }
 
+  private resetMixerScrollMetrics(): void {
+    this.mixerScrollValue.set(0);
+    this.mixerScrollMax.set(0);
+    this.mixerScrollWidth.set(0);
+    this.mixerScrollClientWidth.set(0);
+    const el = this.mixerStripRef?.nativeElement;
+    if (el) {
+      el.scrollLeft = 0;
+    }
+  }
+
   private refreshMixerScrollMetrics(): void {
     const el = this.mixerStripRef?.nativeElement;
     if (!el) {
-      this.mixerScrollValue.set(0);
-      this.mixerScrollMax.set(0);
-      this.mixerScrollWidth.set(0);
-      this.mixerScrollClientWidth.set(0);
+      this.resetMixerScrollMetrics();
       return;
     }
     this.syncMixerScrollFromElement(el);

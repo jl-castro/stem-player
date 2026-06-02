@@ -163,6 +163,7 @@ export class AudioEngineService implements AudioEnginePort {
       return;
     }
 
+    this.restoreMasterGainImmediate();
     this.stopScheduledSourcesOnly();
 
     const clampedOffset = Math.min(Math.max(0, offsetMs), this.maxDurationMs);
@@ -215,7 +216,9 @@ export class AudioEngineService implements AudioEnginePort {
     const clamped = this.clampTimelineMs(timeMs);
     const wasPlaying = this.isTransportPlaying;
 
-    this.applySeekFadeOut();
+    if (wasPlaying) {
+      this.applySeekFadeOut();
+    }
     this.stopScheduledSourcesOnly();
     this.pausedOrStoppedPlayheadMs = clamped;
     this.playheadAtAnchorMs = clamped;
@@ -225,6 +228,7 @@ export class AudioEngineService implements AudioEnginePort {
       this.applySeekFadeIn();
     } else {
       this.isTransportPlaying = false;
+      this.restoreMasterGainImmediate();
     }
     return clamped;
   }
@@ -335,6 +339,15 @@ export class AudioEngineService implements AudioEnginePort {
     const now = this.ctx.currentTime;
     this.masterGain.gain.setValueAtTime(0, now);
     this.masterGain.gain.linearRampToValueAtTime(this.masterLinear, now + SEEK_FADE_SEC);
+  }
+
+  /** Evita master en 0 tras seek en pausa (antes solo se arreglaba moviendo volumen). */
+  private restoreMasterGainImmediate(): void {
+    if (!this.ctx || !this.masterGain) {
+      return;
+    }
+    this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.masterGain.gain.setValueAtTime(this.masterLinear, this.ctx.currentTime);
   }
 
   private computeLivePlayheadMs(): number {

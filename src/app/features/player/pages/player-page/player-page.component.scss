@@ -338,9 +338,9 @@
 }
 
 .mixer-channel.track-row {
-  flex: 1 1 clamp(5.5rem, 4.9rem + 2.4vw, 7rem);
+  flex: 1 1 clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
   min-width: clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
-  max-width: clamp(8.4rem, 7.6rem + 2.8vw, 10rem);
+  max-width: none;
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
@@ -364,9 +364,9 @@
 }
 
 .mixer-channel.cdk-drag-placeholder {
-  flex: 1 1 clamp(5.5rem, 4.9rem + 2.4vw, 7rem);
+  flex: 1 1 clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
   min-width: clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
-  max-width: clamp(8.4rem, 7.6rem + 2.8vw, 10rem);
+  max-width: none;
   opacity: 0.35;
   border-style: dashed;
   border-color: var(--sp-accent-muted);

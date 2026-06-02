@@ -7,33 +7,36 @@ export interface SessionProjectAudio {
   buffers: Map<string, AudioBuffer>;
 }
 
+const MAX_CACHED_PROJECTS = 2;
+
 @Injectable({ providedIn: 'root' })
 export class AudioSessionCacheService {
-  private entry: SessionProjectAudio | null = null;
+  private readonly entries = new Map<string, SessionProjectAudio>();
 
   get(projectId: string, assetKeysFingerprint: string): Map<string, AudioBuffer> | null {
-    if (
-      !this.entry ||
-      this.entry.projectId !== projectId ||
-      this.entry.assetKeysFingerprint !== assetKeysFingerprint
-    ) {
+    const entry = this.entries.get(projectId);
+    if (!entry || entry.assetKeysFingerprint !== assetKeysFingerprint) {
       return null;
     }
-    return this.entry.buffers;
+    return entry.buffers;
   }
 
   set(projectId: string, assetKeysFingerprint: string, buffers: Map<string, AudioBuffer>): void {
-    this.entry = { projectId, assetKeysFingerprint, buffers };
+    if (!this.entries.has(projectId) && this.entries.size >= MAX_CACHED_PROJECTS) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest) {
+        this.entries.delete(oldest);
+      }
+    }
+    this.entries.set(projectId, { projectId, assetKeysFingerprint, buffers });
   }
 
   clear(): void {
-    this.entry = null;
+    this.entries.clear();
   }
 
   clearIfProject(projectId: string): void {
-    if (this.entry?.projectId === projectId) {
-      this.entry = null;
-    }
+    this.entries.delete(projectId);
   }
 }
 

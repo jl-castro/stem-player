@@ -176,12 +176,6 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
         let contentHash = await this.storage.getTrackAssetContentHash(key);
         if (!contentHash) {
           contentHash = await sha256HexFromBlob(blob);
-        } else {
-          const liveHash = await sha256HexFromBlob(blob);
-          if (liveHash !== contentHash) {
-            issues.push(`${track.displayName}: el archivo no coincide con el hash guardado (posible corrupción)`);
-            continue;
-          }
         }
 
         try {
