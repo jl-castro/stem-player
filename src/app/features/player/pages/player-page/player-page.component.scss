@@ -1,7 +1,8 @@
 :host {
   display: block;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--sp-app-height);
+  min-height: var(--sp-app-height);
+  max-height: var(--sp-app-height);
   overflow: hidden;
   overscroll-behavior: none;
   background-color: var(--sp-bg);
@@ -104,7 +105,6 @@
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
-  padding: var(--sp-space-md);
   width: 100%;
   max-width: 20rem;
   margin: 0 auto;
@@ -273,7 +273,12 @@
 
 .mixer-strip__message {
   flex: 1 0 100%;
-  align-self: center;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
   padding: var(--sp-space-md);
 }
 
@@ -338,7 +343,7 @@
 }
 
 .mixer-channel.track-row {
-  flex: 1 1 clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
+  flex: 1 1 0;
   min-width: clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
   max-width: none;
   scroll-snap-align: start;
@@ -358,13 +363,24 @@
     opacity var(--sp-motion-fast) var(--sp-ease-out);
 }
 
+.mixer-strip--scrollable {
+  --mix-ch-flex: 1 1 clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
+  --mix-ch-max: clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
+}
+
+.mixer-strip--scrollable .mixer-channel.track-row,
+.mixer-strip--scrollable .mixer-channel.cdk-drag-placeholder {
+  flex: var(--mix-ch-flex);
+  max-width: var(--mix-ch-max);
+}
+
 .mixer-channel.cdk-drag-preview {
   box-shadow: var(--sp-shadow);
   opacity: 0.96;
 }
 
 .mixer-channel.cdk-drag-placeholder {
-  flex: 1 1 clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
+  flex: 1 1 0;
   min-width: clamp(5.15rem, 4.8rem + 1.8vw, 6.25rem);
   max-width: none;
   opacity: 0.35;
@@ -942,9 +958,13 @@
 
   .mixer-channel.track-row,
   .mixer-channel.cdk-drag-placeholder {
-    flex-basis: 7.25rem;
-    min-width: 6.5rem;
-    max-width: 11rem;
+    padding-inline: var(--sp-space-xs);
+    padding-bottom: var(--sp-space-sm);
+  }
+
+  .mixer-strip--scrollable {
+    --mix-ch-flex: 1 1 7.25rem;
+    --mix-ch-max: 11rem;
   }
 
   .transport-bar {
@@ -1027,16 +1047,9 @@
     font-size: 0.78rem;
   }
 
-  .mixer-channel.track-row {
-    flex: 1 1 7.5rem;
-    min-width: 6.75rem;
-    max-width: 11.5rem;
-  }
-
-  .mixer-channel.cdk-drag-placeholder {
-    flex: 1 1 7.5rem;
-    min-width: 6.75rem;
-    max-width: 11.5rem;
+  .mixer-strip--scrollable {
+    --mix-ch-flex: 1 1 7.5rem;
+    --mix-ch-max: 11.5rem;
   }
 
   .fader-wrap {
@@ -1069,11 +1082,9 @@
     padding-block: var(--sp-space-sm);
   }
 
-  .mixer-channel.track-row,
-  .mixer-channel.cdk-drag-placeholder {
-    flex-basis: 8rem;
-    min-width: 7rem;
-    max-width: 12.5rem;
+  .mixer-strip--scrollable {
+    --mix-ch-flex: 1 1 8rem;
+    --mix-ch-max: 12.5rem;
   }
 }
 
@@ -1082,19 +1093,16 @@
     scroll-padding-inline: var(--sp-space-md);
   }
 
-  .mixer-channel.track-row,
-  .mixer-channel.cdk-drag-placeholder {
-    flex: 1 1 8rem;
-    min-width: 7rem;
-    max-width: 12rem;
+  .mixer-strip--scrollable {
+    --mix-ch-flex: 1 1 8rem;
+    --mix-ch-max: 12rem;
   }
 }
 
 @container mixer (min-width: 48rem) {
-  .mixer-channel.track-row,
-  .mixer-channel.cdk-drag-placeholder {
-    flex: 1 1 8.5rem;
-    max-width: 13.5rem;
+  .mixer-strip--scrollable {
+    --mix-ch-flex: 1 1 8.5rem;
+    --mix-ch-max: 13.5rem;
   }
 
   .fader-wrap {
@@ -1112,10 +1120,8 @@
     font-size: 1.35rem;
   }
 
-  .mixer-channel.track-row,
-  .mixer-channel.cdk-drag-placeholder {
-    min-width: 7.25rem;
-    max-width: 13rem;
+  .mixer-strip--scrollable {
+    --mix-ch-max: 13rem;
   }
 
   .transport-bar {
@@ -1169,15 +1175,13 @@
 }
 
 @media (min-width: 1200px) {
-  .mixer-channel.track-row,
-  .mixer-channel.cdk-drag-placeholder {
-    max-width: 14rem;
+  .mixer-strip--scrollable {
+    --mix-ch-max: 14rem;
   }
 
   @container mixer (min-width: 56rem) {
-    .mixer-channel.track-row,
-    .mixer-channel.cdk-drag-placeholder {
-      max-width: 15rem;
+    .mixer-strip--scrollable {
+      --mix-ch-max: 15rem;
     }
   }
 }

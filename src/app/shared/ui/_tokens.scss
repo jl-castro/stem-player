@@ -1,6 +1,9 @@
 :root {
   color-scheme: dark;
 
+  /* Actualizado en runtime vía visualViewport (Chrome/Android). */
+  --sp-app-height: 100dvh;
+
   /* Warm studio neutrals (dim rehearsal room, low glare) */
   --sp-bg: oklch(0.145 0.012 55);
   --sp-surface: oklch(0.185 0.014 55);

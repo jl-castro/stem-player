@@ -1,6 +1,6 @@
 :host {
   display: block;
-  min-height: 100dvh;
+  min-height: var(--sp-app-height);
   background-color: var(--sp-bg);
   color: var(--sp-text);
   color-scheme: dark;
