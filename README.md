@@ -2,6 +2,10 @@
 
 Aplicación web local para importar, guardar y reproducir proyectos de stems de audio. Permite crear proyectos desde archivos MP3, WAV o M4A, mezclar cada pista por separado y conservar los datos en el navegador.
 
+## Estado del proyecto
+
+La aplicación funciona completamente en el cliente: no requiere backend, autenticación ni variables de entorno. Está orientada a ensayos y presentaciones donde se necesita reproducir y mezclar varios stems sincronizados desde un navegador moderno.
+
 ## Funcionalidades
 
 - Crear proyectos con uno o varios archivos de audio.
@@ -26,7 +30,7 @@ Aplicación web local para importar, guardar y reproducir proyectos de stems de 
 
 ## Stack
 
-- Angular 20
+- Angular 20.3
 - Componentes standalone y detección de cambios zoneless
 - Angular CDK Drag Drop
 - Dexie / IndexedDB
@@ -37,14 +41,23 @@ Aplicación web local para importar, guardar y reproducir proyectos de stems de 
 
 ## Requisitos
 
-- Node.js compatible con Angular 20
+- Node.js 20.19 o una versión compatible con Angular 20
+- npm 10 o posterior
 - Un navegador moderno con soporte para Web Audio, Web Workers e IndexedDB
+
+El proyecto se ha verificado con Node.js 20.19.4, npm 10.8.2 y Angular 20.3.19. Las versiones exactas de las dependencias instaladas están fijadas en `package-lock.json`.
 
 La compatibilidad real de MP3, WAV y M4A depende de los códecs que implemente el navegador. En particular, no todos los navegadores pueden decodificar todas las variantes de M4A.
 
 ## Persistencia local
 
 Los proyectos, archivos originales y datos PCM se guardan en la base IndexedDB `stem-player`. No existe backend, cuenta de usuario ni sincronización en la nube.
+
+La base utiliza tres tablas:
+
+- `projects`: metadatos del proyecto, orden de pistas y ajustes de mezcla.
+- `trackAssets`: archivos de audio originales importados por el usuario.
+- `decodedCaches`: audio PCM decodificado, asociado al hash del archivo original.
 
 Los datos pertenecen al navegador, dispositivo y origen web donde se importaron. Por ejemplo, los proyectos creados en `http://localhost:4200` no aparecen automáticamente en el dominio desplegado en Cloudflare. Borrar los datos del sitio, usar navegación privada o cambiar de navegador puede hacer que dejen de estar disponibles.
 
@@ -56,9 +69,13 @@ El manifest aporta nombre, colores y modo standalone para instalación cuando el
 
 ## Instalación
 
+Para una instalación reproducible a partir del lockfile:
+
 ```bash
-npm install
+npm ci
 ```
+
+Usa `npm install` cuando necesites modificar dependencias y actualizar `package-lock.json`.
 
 ## Desarrollo
 
@@ -81,6 +98,11 @@ npm run build
 ```
 
 El build de producción queda en `dist/stem-player/browser`.
+
+Los límites configurados para el build de producción son:
+
+- Bundle inicial: aviso en 500 kB y error en 1 MB.
+- Estilos por componente: aviso en 18 kB y error en 22 kB.
 
 ## Despliegue en Cloudflare Pages
 
@@ -106,6 +128,13 @@ Ejecuta los tests unitarios con Karma y Jasmine en modo interactivo. Para una so
 npm test -- --watch=false
 ```
 
+Antes de integrar cambios se recomienda ejecutar:
+
+```bash
+npm test -- --watch=false
+npm run build
+```
+
 ## Uso básico
 
 1. Entra a `Proyectos`.
@@ -116,14 +145,57 @@ npm test -- --watch=false
 6. Activa `Modo en vivo` cuando necesites bloquear el seek y exigir que todas las pistas estén listas antes de reproducir.
 7. Vuelve a `Proyectos` si necesitas agregar o quitar stems del proyecto.
 
+## Arquitectura
+
+El flujo principal de la aplicación es:
+
+1. `ProjectImportService` valida cada archivo, calcula su hash y solicita la decodificación.
+2. `AudioDecodeService` intenta decodificar en `audio-decode.worker.ts`; si el entorno no lo permite, utiliza el hilo principal.
+3. `ProjectStorageService` guarda el archivo original, el PCM decodificado y los metadatos mediante Dexie.
+4. `PlayerPlaybackService` carga el proyecto, recupera la caché disponible y coordina el estado del reproductor.
+5. `AudioEngineService` monta los `AudioBuffer`, sincroniza el transporte y aplica volumen, paneo, mute y solo.
+
+Los componentes de página manejan la interacción y presentación. La lógica de importación, persistencia y reproducción permanece en servicios, mientras que los contratos de `src/app/core/contracts` mantienen desacopladas esas responsabilidades.
+
 ## Estructura principal
 
 - `src/app/features/projects`: creación, importación, edición y eliminación de proyectos y pistas.
 - `src/app/features/player`: reproductor, mezclador y estado de reproducción.
+- `src/app/core/contracts`: interfaces para persistencia, reproducción y motor de audio.
 - `src/app/core/services`: motor de audio, decodificación, caché de sesión y Wake Lock.
 - `src/app/core/audio`: worker de decodificación y conversión PCM / AudioBuffer.
 - `src/app/core/storage`: base Dexie, filas IndexedDB, caché PCM y mapeadores.
 - `src/app/core/models`: modelos de dominio para proyectos, stems y estado del reproductor.
+- `src/app/core/utils`: importación, hashes, memoria de audio, tiempo y orden de pistas.
 - `src/app/shared`: iconos, pipes, estilos compartidos y utilidades de UI.
+- `public`: manifest, favicon y reglas de redirección para el despliegue SPA.
 
 Las rutas `/projects` y `/player/:projectId` cargan sus páginas de forma diferida.
+
+## Decisiones y limitaciones
+
+- La duración del proyecto corresponde al stem cargado de mayor duración.
+- Los controles de volumen utilizan ganancia lineal entre 0 y 1.
+- El paneo es discreto: izquierda, centro o derecha.
+- Los cambios de mezcla se guardan con un debounce de 450 ms.
+- El reproductor puede continuar con las pistas disponibles, salvo cuando está activo el Modo en vivo.
+- No existe exportación de mezclas, copia de seguridad ni transferencia de proyectos entre navegadores.
+- El manifest permite instalación en navegadores compatibles, pero la aplicación no es una PWA offline porque no registra un service worker.
+
+## Solución de problemas
+
+### El proyecto aparece, pero faltan audios
+
+Los metadatos pueden existir aunque el almacenamiento del sitio se haya limpiado parcialmente. Vuelve a `Proyectos`, elimina las pistas afectadas y vuelve a importarlas.
+
+### Un archivo M4A no se puede importar
+
+El contenedor M4A admite distintos códecs y el soporte depende del navegador y del sistema operativo. Convierte el archivo a WAV o MP3, o prueba un navegador con soporte para ese códec.
+
+### El audio se detiene al cambiar de aplicación o bloquear la pantalla
+
+Algunos navegadores suspenden el `AudioContext` o no permiten Wake Lock. Regresa a la aplicación y usa la acción para reactivar el audio. Las políticas del sistema pueden seguir imponiendo restricciones.
+
+### Los proyectos de desarrollo no aparecen en producción
+
+IndexedDB está aislado por origen. `localhost`, un dominio de preview y el dominio de producción mantienen almacenes independientes.
