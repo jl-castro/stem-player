@@ -31,7 +31,7 @@ export class ProjectImportService {
   ): Promise<Project> {
     const trimmed = name.trim();
     if (!trimmed) {
-      throw new Error('El nombre del proyecto es obligatorio.');
+      throw new Error('El nombre del pack es obligatorio.');
     }
     if (!files.length) {
       throw new Error('Selecciona al menos un archivo de audio.');
@@ -134,7 +134,7 @@ export class ProjectImportService {
 
     const existing = await this.storage.getProjectById(projectId);
     if (!existing) {
-      throw new Error('Proyecto no encontrado.');
+      throw new Error('Pack no encontrado.');
     }
 
     const invalid = files.filter((f) => !isAllowedAudioFile(f));
@@ -233,7 +233,7 @@ export class ProjectImportService {
   async removeTrackFromProject(projectId: string, trackId: string): Promise<Project> {
     const existing = await this.storage.getProjectById(projectId);
     if (!existing) {
-      throw new Error('Proyecto no encontrado.');
+      throw new Error('Pack no encontrado.');
     }
 
     const track = existing.tracks.find((t) => t.id === trackId);

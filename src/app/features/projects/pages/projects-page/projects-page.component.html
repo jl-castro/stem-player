@@ -1,6 +1,6 @@
 <div class="projects-page">
   <header class="page-header">
-    <h1>Proyectos</h1>
+    <h1>Packs</h1>
     <p class="page-tag">Local · MP3, WAV, M4A</p>
   </header>
 
@@ -9,12 +9,12 @@
       <div class="banner banner--error" role="alert">{{ err }}</div>
     }
 
-    <section class="create-panel" aria-label="Nuevo proyecto">
+    <section class="create-panel" aria-label="Nuevo pack">
       <input
         id="project-name"
         type="text"
         class="field-input"
-        placeholder="Nombre del proyecto"
+        placeholder="Nombre del pack"
         autocomplete="off"
         [value]="newProjectName()"
         (input)="onNewNameInput($event)"
@@ -51,7 +51,7 @@
           class="btn btn--primary btn--create"
           [disabled]="createDisabled()"
           [attr.aria-busy]="isCreating()"
-          [attr.aria-label]="isCreating() ? createPhaseMessage() : 'Crear proyecto'"
+          [attr.aria-label]="isCreating() ? createPhaseMessage() : 'Crear pack'"
           [attr.aria-describedby]="showCreateHint() ? 'create-hint' : null"
           (click)="onCreateProject()"
         >
@@ -72,13 +72,13 @@
       }
     </section>
 
-    <section class="list-section" aria-label="Proyectos guardados">
+    <section class="list-section" aria-label="Packs guardados">
       @if (listLoading()) {
         <p class="loading-hint loading-hint--pulse list-status" role="status">Cargando…</p>
       } @else if (projects().length === 0) {
-        <p class="list-status list-status--empty" role="status">Sin proyectos aún.</p>
+        <p class="list-status list-status--empty" role="status">Sin packs aún.</p>
       } @else {
-        <p class="list-status" aria-hidden="true">{{ projects().length }} guardado(s)</p>
+        <p class="list-status" aria-hidden="true">{{ projects().length }} pack(s)</p>
       }
 
       @if (renameError(); as rErr) {
@@ -215,7 +215,7 @@
                     class="field-file"
                     accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
                     multiple
-                    aria-label="Añadir stems al proyecto"
+                    aria-label="Añadir stems al pack"
                     [disabled]="tracksBusy()"
                     (change)="onAddTracksSelected($event, project.id)"
                   />

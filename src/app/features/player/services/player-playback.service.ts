@@ -124,7 +124,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     const tracksWithKey = copy.tracks.filter((t) => !!t.storedAssetKey);
     if (copy.tracks.length > 0 && tracksWithKey.length === 0) {
       fail(
-        'Este proyecto no tiene archivos de audio guardados. En Proyectos, importa al menos un MP3, WAV o M4A para cada stem.',
+        'Este pack no tiene archivos de audio guardados. En Packs, importa al menos un MP3, WAV o M4A para cada pista.',
       );
       return;
     }
@@ -209,7 +209,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
         issues.every((msg) => msg.includes('no encontrado'));
       if (allBlobMissing) {
         fail(
-          `No se encontraron los archivos de audio en el almacén local del navegador. Puede que se hayan borrado los datos del sitio o el proyecto esté corrupto.${detail}`,
+          `No se encontraron los archivos de audio en el almacén local del navegador. Puede que se hayan borrado los datos del sitio o el pack esté corrupto.${detail}`,
         );
       } else {
         fail(`No se pudo preparar ningún stem para reproducir.${detail}`);
@@ -269,7 +269,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     const missingKey = copy.tracks.filter((t) => !t.storedAssetKey);
     if (missingKey.length > 0) {
       summaryParts.push(
-        `${missingKey.length} pista(s) sin archivo guardado. Importa de nuevo desde Proyectos si falta audio.`,
+        `${missingKey.length} pista(s) sin archivo guardado. Importa de nuevo desde Packs si falta audio.`,
       );
     }
     if (issues.length > 0 && buffers.size < tracksWithKey.length) {

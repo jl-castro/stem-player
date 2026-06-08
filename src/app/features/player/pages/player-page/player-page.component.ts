@@ -222,14 +222,14 @@ export class PlayerPageComponent {
           const projectId = pm.get('projectId');
           if (!projectId) {
             this.pageLoading.set(false);
-            this.pageError.set('Falta el id del proyecto en la ruta.');
+            this.pageError.set('Falta el id del pack en la ruta.');
             return EMPTY;
           }
           return from(this.storage.getProjectById(projectId)).pipe(
             switchMap((project) => {
               if (!project) {
                 this.pageLoading.set(false);
-                this.pageError.set('Proyecto no encontrado.');
+                this.pageError.set('Pack no encontrado.');
                 return EMPTY;
               }
               return from(this.playback.loadProject(project)).pipe(
