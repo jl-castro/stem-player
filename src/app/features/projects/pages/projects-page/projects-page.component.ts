@@ -247,6 +247,10 @@ export class ProjectsPageComponent {
     return setlist.entries.length;
   }
 
+  sortedSetlistEntries(setlist: Setlist) {
+    return sortSetlistEntriesByOrder(setlist.entries);
+  }
+
   packsAvailableToAdd(setlist: Setlist): Project[] {
     const used = new Set(setlist.entries.map((e) => e.packId));
     return this.projects().filter((p) => !used.has(p.id));
@@ -388,9 +392,14 @@ export class ProjectsPageComponent {
     try {
       await this.setlistPreload.warmSetlist(setlist);
       await this.refreshSetlists();
+      this.setlistPreload.setlistPreloadProgress.set({
+        loaded: setlist.entries.length,
+        total: setlist.entries.length,
+        label: 'Setlist listo para el show',
+      });
+      window.setTimeout(() => this.setlistPreload.clearSetlistPreloadProgress(), 4000);
     } finally {
       this.setlistPreloadingId.set(null);
-      this.setlistPreload.clearSetlistPreloadProgress();
     }
   }
 

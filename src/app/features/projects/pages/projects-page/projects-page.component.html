@@ -328,7 +328,7 @@
                     (click)="onPlaySetlist(setlist)"
                   >
                     <svg lucidePlay [size]="16" aria-hidden="true"></svg>
-                    <span>Abrir</span>
+                    <span>Iniciar</span>
                   </button>
                   <button
                     type="button"
@@ -365,7 +365,7 @@
                   cdkDropList
                   (cdkDropListDropped)="onSetlistEntryDrop(setlist.id, $event)"
                 >
-                  @for (entry of setlist.entries; track entry.id; let i = $index) {
+                  @for (entry of sortedSetlistEntries(setlist); track entry.id; let i = $index) {
                     <li class="setlist-entry" cdkDrag [cdkDragDisabled]="setlistEditorBusy()">
                       <span class="setlist-entry__handle" cdkDragHandle aria-hidden="true">
                         <svg lucideGripVertical [size]="16"></svg>

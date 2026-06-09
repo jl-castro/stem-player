@@ -51,7 +51,7 @@
       <p class="hint">Las pistas «Sin audio» no tienen archivo en este dispositivo.</p>
     }
     @if (hasSetlistNav() && !pageLoading() && hasNextPack() && playback.liveMode() && !nextPackReady()) {
-      <p class="hint">Precargando el siguiente pack del setlist…</p>
+      <p class="hint">El siguiente pack aún se está precargando. En modo en vivo, Siguiente se habilita cuando esté listo.</p>
     }
   </header>
 
@@ -69,6 +69,20 @@
         El audio del navegador está suspendido.
         <button type="button" class="btn btn--inline" (click)="playback.resumeAudio()">
           Reactivar audio
+        </button>
+      </div>
+    }
+
+    @if (showPackFinishedBanner()) {
+      <div class="banner banner--info pack-finished-banner" role="status">
+        <span>{{ packFinishedBannerText() }}</span>
+        <button
+          type="button"
+          class="btn btn--primary btn--inline"
+          [disabled]="nextPackDisabled()"
+          (click)="goToNextPack()"
+        >
+          Siguiente pack
         </button>
       </div>
     }
@@ -317,20 +331,33 @@
             type="button"
             class="btn btn--icon btn--icon-only btn--ghost"
             [disabled]="previousPackDisabled()"
-            aria-label="Pack anterior del setlist"
+            aria-label="Pack anterior"
             (click)="goToPreviousPack()"
           >
             <svg lucideChevronLeft [size]="22"></svg>
           </button>
-          <span class="setlist-nav-label">{{ setlistPositionLabel() }}</span>
+
+          <div class="setlist-nav-center">
+            <span class="setlist-nav-next-name">{{ setlistNavCenterTitle() }}</span>
+            @if (hasNextPack()) {
+              <span
+                class="setlist-nav-status"
+                [attr.data-ready]="nextPackReady()"
+              >
+                {{ nextPackStatusHint() }}
+              </span>
+            }
+          </div>
+
           <button
             type="button"
-            class="btn btn--icon btn--icon-only btn--ghost"
+            class="btn btn--primary setlist-nav-next"
             [disabled]="nextPackDisabled()"
-            [attr.aria-label]="nextPackReady() ? 'Siguiente pack del setlist' : 'Siguiente pack (precargando)'"
+            [attr.aria-label]="nextEntryPackName() ? 'Siguiente: ' + nextEntryPackName() : 'Siguiente pack'"
             (click)="goToNextPack()"
           >
-            <svg lucideChevronRight [size]="22"></svg>
+            <span>Siguiente</span>
+            <svg lucideChevronRight [size]="20" aria-hidden="true"></svg>
           </button>
         </div>
       }

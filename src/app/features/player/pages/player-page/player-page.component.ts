@@ -8,6 +8,7 @@ import {
   DestroyRef,
   ElementRef,
   effect,
+  HostListener,
   inject,
   signal,
   ViewChild,
@@ -73,6 +74,7 @@ export class PlayerPageComponent {
 
   readonly activeSetlist = signal<Setlist | null>(null);
   readonly activeEntryIndex = signal(0);
+  private readonly setlistPackNames = signal<ReadonlyMap<string, string>>(new Map());
 
   readonly pageLoading = signal(false);
   readonly pageError = signal<string | null>(null);
@@ -219,6 +221,62 @@ export class PlayerPageComponent {
     () => !this.hasPreviousPack() || this.pageLoading(),
   );
 
+  readonly nextEntryPackName = computed(() => {
+    const setlist = this.activeSetlist();
+    if (!setlist) {
+      return null;
+    }
+    const entries = sortSetlistEntriesByOrder(setlist.entries);
+    const next = entries[this.activeEntryIndex() + 1];
+    if (!next) {
+      return null;
+    }
+    return this.setlistPackNames().get(next.packId) ?? null;
+  });
+
+  readonly nextPackStatusHint = computed(() => {
+    if (!this.hasNextPack()) {
+      return '';
+    }
+    if (this.nextPackReady()) {
+      return 'Listo';
+    }
+    const status = this.nextEntryPackId()
+      ? this.setlistPreload.getStatus(this.nextEntryPackId()!)
+      : 'pending';
+    if (status === 'loading') {
+      return 'Precargando…';
+    }
+    if (status === 'error') {
+      return 'Error al precargar';
+    }
+    return 'Pendiente';
+  });
+
+  readonly showPackFinishedBanner = computed(() => {
+    if (!this.hasSetlistNav() || !this.hasNextPack() || this.pageLoading()) {
+      return false;
+    }
+    const st = this.playback.state();
+    if (st.status !== 'paused' && st.status !== 'stopped') {
+      return false;
+    }
+    const dur = st.durationMs;
+    return dur > 0 && st.currentTimeMs >= dur - 500;
+  });
+
+  readonly packFinishedBannerText = computed(() => {
+    const name = this.nextEntryPackName();
+    return name ? `Pack terminado · Siguiente: ${name}` : 'Pack terminado';
+  });
+
+  readonly setlistNavCenterTitle = computed(() => {
+    if (!this.hasNextPack()) {
+      return 'Fin del setlist';
+    }
+    return this.nextEntryPackName() ?? 'Siguiente pack';
+  });
+
   private readonly onWindowResize = (): void => {
     this.refreshMixerScrollMetrics();
   };
@@ -297,6 +355,7 @@ export class PlayerPageComponent {
 
           const setlistId = qm.get('setlist');
           const entryRaw = qm.get('entry');
+          const shouldAutoplay = qm.get('autoplay') === '1';
 
           return from(
             Promise.all([
@@ -331,9 +390,11 @@ export class PlayerPageComponent {
                 entryIndex = Math.max(0, Math.min(entryIndex, Math.max(0, entries.length - 1)));
                 this.activeSetlist.set({ ...setlist, entries });
                 this.activeEntryIndex.set(entryIndex);
+                void this.loadSetlistPackNames(setlist);
               } else {
                 this.activeSetlist.set(null);
                 this.activeEntryIndex.set(0);
+                this.setlistPackNames.set(new Map());
               }
 
               return from(this.playback.loadProject(project)).pipe(
@@ -341,8 +402,13 @@ export class PlayerPageComponent {
                   const st = this.playback.state();
                   if (st.status === 'error') {
                     this.pageError.set(st.errorMessage ?? 'No se pudo preparar el audio.');
-                  } else if (setlist) {
-                    this.setlistPreload.warmNextInSetlist(setlist, this.activeEntryIndex());
+                  } else {
+                    if (setlist) {
+                      this.setlistPreload.warmNextInSetlist(setlist, this.activeEntryIndex());
+                    }
+                    if (shouldAutoplay && st.canPlay) {
+                      queueMicrotask(() => this.playback.play());
+                    }
                   }
                   this.pageLoading.set(false);
                   requestAnimationFrame(() => {
@@ -368,10 +434,44 @@ export class PlayerPageComponent {
   }
 
   goToNextPack(): void {
-    this.goToAdjacentPack(1);
+    const atEnd = this.showPackFinishedBanner();
+    const wasPlaying = this.playback.state().status === 'playing';
+    this.goToAdjacentPack(1, atEnd || wasPlaying);
   }
 
-  private goToAdjacentPack(delta: -1 | 1): void {
+  private nextEntryPackId(): string | null {
+    const setlist = this.activeSetlist();
+    if (!setlist) {
+      return null;
+    }
+    const entries = sortSetlistEntriesByOrder(setlist.entries);
+    return entries[this.activeEntryIndex() + 1]?.packId ?? null;
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onSetlistKeydown(ev: KeyboardEvent): void {
+    if (!this.hasSetlistNav() || this.pageLoading() || this.isScrubbing()) {
+      return;
+    }
+    const target = ev.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      target instanceof HTMLButtonElement
+    ) {
+      return;
+    }
+    if (ev.key === 'ArrowRight' && !this.nextPackDisabled()) {
+      ev.preventDefault();
+      this.goToNextPack();
+    } else if (ev.key === 'ArrowLeft' && !this.previousPackDisabled()) {
+      ev.preventDefault();
+      this.goToPreviousPack();
+    }
+  }
+
+  private goToAdjacentPack(delta: -1 | 1, autoplay = false): void {
     const setlist = this.activeSetlist();
     if (!setlist) {
       return;
@@ -383,8 +483,23 @@ export class PlayerPageComponent {
     }
     const entry = entries[nextIndex]!;
     void this.router.navigate(['/player', entry.packId], {
-      queryParams: { setlist: setlist.id, entry: nextIndex },
+      queryParams: {
+        setlist: setlist.id,
+        entry: nextIndex,
+        ...(autoplay ? { autoplay: '1' } : {}),
+      },
     });
+  }
+
+  private async loadSetlistPackNames(setlist: Setlist): Promise<void> {
+    const uniqueIds = [...new Set(setlist.entries.map((e) => e.packId))];
+    const pairs = await Promise.all(
+      uniqueIds.map(async (id) => {
+        const pack = await this.storage.getProjectById(id);
+        return [id, pack?.name ?? 'Pack eliminado'] as const;
+      }),
+    );
+    this.setlistPackNames.set(new Map(pairs));
   }
 
   onSeekPointerDown(ev: PointerEvent): void {

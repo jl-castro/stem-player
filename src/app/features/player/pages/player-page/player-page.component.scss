@@ -756,8 +756,63 @@
 }
 
 .transport-row--setlist {
-  justify-content: center;
+  justify-content: space-between;
   width: 100%;
+  gap: var(--sp-space-sm);
+  align-items: stretch;
+}
+
+.setlist-nav-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.1rem;
+  padding-inline: 0.25rem;
+}
+
+.setlist-nav-next-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.setlist-nav-status {
+  font-size: 0.68rem;
+  color: var(--sp-text-muted);
+
+  &[data-ready='true'] {
+    color: var(--sp-accent);
+  }
+
+  &[data-status='Precargando…'] {
+    color: var(--sp-warn, oklch(0.75 0.12 85));
+  }
+
+  &[data-status='Error al precargar'] {
+    color: var(--sp-danger);
+  }
+}
+
+.setlist-nav-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: var(--sp-touch-min);
+  padding-inline: 0.85rem;
+  flex-shrink: 0;
+}
+
+.pack-finished-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--sp-space-sm);
 }
 
