@@ -28,6 +28,7 @@ export function isBackgroundWorkAborted(error: unknown): boolean {
 
 export interface BackgroundWorkHandle {
   release(): void;
+  setLabel(label: string): void;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -62,6 +63,11 @@ export class BackgroundWorkService {
     return {
       release: () => {
         this.tasks.update((current) => current.filter((task) => task.id !== id));
+      },
+      setLabel: (nextLabel: string) => {
+        this.tasks.update((current) =>
+          current.map((task) => (task.id === id ? { ...task, label: nextLabel } : task)),
+        );
       },
     };
   }

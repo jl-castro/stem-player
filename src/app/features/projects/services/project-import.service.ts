@@ -1,8 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 
+import { releaseDecodedPcm } from '../../../core/audio/decoded-pcm';
 import type { Project, StemTrack } from '../../../core/models';
 import { AudioDecodeService } from '../../../core/services/audio-decode.service';
 import {
+  BackgroundWorkAbortedError,
   BackgroundWorkService,
   isBackgroundWorkAborted,
 } from '../../../core/services/background-work.service';
@@ -53,25 +55,26 @@ export class ProjectImportService {
     const now = new Date().toISOString();
     const keysCollected: string[] = [];
     const tracks: StemTrack[] = [];
+    const total = files.length;
 
-    onProgress?.('decoding', { current: 0, total: files.length });
-
-    const trackHandle = this.backgroundWork.track('import', 'Importando pack…');
+    const operation = this.backgroundWork.beginOperation();
+    const trackHandle = this.backgroundWork.track('import', importProgressLabel('decoding', 0, total));
 
     try {
-      const decoded: { file: File; durationMs: number; order: number; pcm: Awaited<ReturnType<AudioDecodeService['decodeBlobToPcm']>>; contentHash: string }[] = [];
-      let order = 0;
-      let current = 0;
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index]!;
+        const current = index + 1;
+        throwIfAborted(operation.signal);
 
-      for (const file of files) {
-        this.backgroundWork.throwIfAborted();
-        current += 1;
-        onProgress?.('decoding', { current, total: files.length });
+        trackHandle.setLabel(importProgressLabel('decoding', current, total));
+        onProgress?.('decoding', { current, total });
+
+        let contentHash: string;
+        let pcm: Awaited<ReturnType<AudioDecodeService['decodeBlobToPcm']>>;
         try {
-          const contentHash = await sha256HexFromBlob(file);
-          const pcm = await this.decode.decodeBlobToPcm(file);
-          decoded.push({ file, durationMs: pcm.durationMs, order, pcm, contentHash });
-          order += 1;
+          contentHash = await sha256HexFromBlob(file);
+          throwIfAborted(operation.signal);
+          pcm = await this.decode.decodeBlobToPcm(file);
         } catch (e) {
           if (isBackgroundWorkAborted(e)) {
             throw e;
@@ -79,27 +82,24 @@ export class ProjectImportService {
           const detail = e instanceof Error ? e.message : String(e);
           throw new Error(`No se pudo leer "${file.name}". ${detail}`);
         }
-      }
 
-      onProgress?.('persisting', { current: 0, total: decoded.length });
-
-      let persistIndex = 0;
-      for (const { file, durationMs, order: trackOrder, pcm, contentHash } of decoded) {
-        this.backgroundWork.throwIfAborted();
-        persistIndex += 1;
-        onProgress?.('persisting', { current: persistIndex, total: decoded.length });
+        throwIfAborted(operation.signal);
+        trackHandle.setLabel(importProgressLabel('persisting', current, total));
+        onProgress?.('persisting', { current, total });
 
         const trackId = crypto.randomUUID();
         const key = await this.storage.saveTrackAsset(projectId, trackId, file);
         keysCollected.push(key);
         await this.storage.saveDecodedCache(key, contentHash, pcm);
+        const durationMs = pcm.durationMs;
+        releaseDecodedPcm(pcm);
 
         tracks.push({
           id: trackId,
           fileName: file.name,
           displayName: basenameWithoutExt(file.name),
-          color: stemColorForIndex(trackOrder),
-          order: trackOrder,
+          color: stemColorForIndex(index),
+          order: index,
           durationMs,
           volume: 1,
           pan: 'center',
@@ -146,6 +146,7 @@ export class ProjectImportService {
       }
       throw error;
     } finally {
+      operation.complete();
       trackHandle.release();
     }
   }
@@ -175,28 +176,26 @@ export class ProjectImportService {
     const keysCollected: string[] = [];
     const addedTracks: StemTrack[] = [];
     let order = existing.tracks.length;
+    const total = files.length;
 
-    onProgress?.('decoding', { current: 0, total: files.length });
-
-    const trackHandle = this.backgroundWork.track('import', 'Añadiendo pistas…');
+    const operation = this.backgroundWork.beginOperation();
+    const trackHandle = this.backgroundWork.track('import', addTracksProgressLabel('decoding', 0, total));
 
     try {
-      const decoded: {
-        file: File;
-        durationMs: number;
-        pcm: Awaited<ReturnType<AudioDecodeService['decodeBlobToPcm']>>;
-        contentHash: string;
-      }[] = [];
-      let current = 0;
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index]!;
+        const current = index + 1;
+        throwIfAborted(operation.signal);
 
-      for (const file of files) {
-        this.backgroundWork.throwIfAborted();
-        current += 1;
-        onProgress?.('decoding', { current, total: files.length });
+        trackHandle.setLabel(addTracksProgressLabel('decoding', current, total));
+        onProgress?.('decoding', { current, total });
+
+        let contentHash: string;
+        let pcm: Awaited<ReturnType<AudioDecodeService['decodeBlobToPcm']>>;
         try {
-          const contentHash = await sha256HexFromBlob(file);
-          const pcm = await this.decode.decodeBlobToPcm(file);
-          decoded.push({ file, durationMs: pcm.durationMs, pcm, contentHash });
+          contentHash = await sha256HexFromBlob(file);
+          throwIfAborted(operation.signal);
+          pcm = await this.decode.decodeBlobToPcm(file);
         } catch (e) {
           if (isBackgroundWorkAborted(e)) {
             throw e;
@@ -204,20 +203,18 @@ export class ProjectImportService {
           const detail = e instanceof Error ? e.message : String(e);
           throw new Error(`No se pudo leer "${file.name}". ${detail}`);
         }
-      }
 
-      onProgress?.('persisting', { current: 0, total: decoded.length });
-
-      let persistIndex = 0;
-      for (const { file, durationMs, pcm, contentHash } of decoded) {
-        this.backgroundWork.throwIfAborted();
-        persistIndex += 1;
-        onProgress?.('persisting', { current: persistIndex, total: decoded.length });
+        throwIfAborted(operation.signal);
+        trackHandle.setLabel(addTracksProgressLabel('persisting', current, total));
+        onProgress?.('persisting', { current, total });
 
         const trackId = crypto.randomUUID();
         const key = await this.storage.saveTrackAsset(projectId, trackId, file);
         keysCollected.push(key);
         await this.storage.saveDecodedCache(key, contentHash, pcm);
+
+        const durationMs = pcm.durationMs;
+        releaseDecodedPcm(pcm);
 
         addedTracks.push({
           id: trackId,
@@ -276,6 +273,7 @@ export class ProjectImportService {
       }
       throw error;
     } finally {
+      operation.complete();
       trackHandle.release();
     }
   }
@@ -311,4 +309,28 @@ export class ProjectImportService {
     this.sessionCache.clearIfProject(projectId);
     return project;
   }
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw new BackgroundWorkAbortedError();
+  }
+}
+
+function importProgressLabel(
+  phase: ProjectImportPhase,
+  current: number,
+  total: number,
+): string {
+  const prefix = phase === 'decoding' ? 'Importando pack' : 'Guardando pack';
+  return total > 0 ? `${prefix}… (${current}/${total})` : `${prefix}…`;
+}
+
+function addTracksProgressLabel(
+  phase: ProjectImportPhase,
+  current: number,
+  total: number,
+): string {
+  const prefix = phase === 'decoding' ? 'Añadiendo pistas' : 'Guardando pistas';
+  return total > 0 ? `${prefix}… (${current}/${total})` : `${prefix}…`;
 }

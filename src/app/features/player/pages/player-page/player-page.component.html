@@ -103,13 +103,14 @@
             <p class="loading-hint loading-hint--pulse">
               {{ playback.loadProgress()?.label ?? 'Cargando pistas y audio…' }}
             </p>
-            @if (loadProgressPercent() !== null) {
+            @if (loadProgressDetail(); as detail) {
+              <p class="load-progress__tracks" aria-live="polite">{{ detail }} pistas</p>
               <progress
                 class="load-progress__bar"
                 [value]="loadProgressPercent()!"
                 max="100"
               ></progress>
-              <span class="load-progress__pct">{{ loadProgressPercent() }} %</span>
+              <span class="load-progress__pct">{{ detail }} · {{ loadProgressPercent() }} %</span>
             }
           </div>
         } @else {

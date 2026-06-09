@@ -149,6 +149,14 @@ export class PlayerPageComponent {
     return Math.round((p.loaded / p.total) * 100);
   });
 
+  readonly loadProgressDetail = computed(() => {
+    const p = this.playback.loadProgress();
+    if (!p || p.total <= 0) {
+      return null;
+    }
+    return `${p.loaded}/${p.total}`;
+  });
+
   readonly statusLabel = computed(() => {
     if (this.pageLoading()) {
       const p = this.playback.loadProgress();

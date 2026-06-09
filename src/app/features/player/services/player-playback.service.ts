@@ -165,7 +165,10 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       try {
         resolved = await this.resolveProjectBuffers(
           copy,
-          (progress) => this.loadProgress.set(progress),
+          (progress) => {
+            this.loadProgress.set(progress);
+            trackHandle.setLabel(`${progress.label} (${progress.loaded}/${progress.total})`);
+          },
           this.backgroundWork.signal,
           pickTrackLoadConcurrency(tracksWithKey.length, TRACK_LOAD_CONCURRENCY),
         );
