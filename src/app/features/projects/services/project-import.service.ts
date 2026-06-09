@@ -317,20 +317,10 @@ function throwIfAborted(signal: AbortSignal): void {
   }
 }
 
-function importProgressLabel(
-  phase: ProjectImportPhase,
-  current: number,
-  total: number,
-): string {
-  const prefix = phase === 'decoding' ? 'Importando pack' : 'Guardando pack';
-  return total > 0 ? `${prefix}… (${current}/${total})` : `${prefix}…`;
+function importProgressLabel(_phase: ProjectImportPhase, current: number, total: number): string {
+  return total > 0 ? `Importando pack… (${current}/${total})` : 'Importando pack…';
 }
 
-function addTracksProgressLabel(
-  phase: ProjectImportPhase,
-  current: number,
-  total: number,
-): string {
-  const prefix = phase === 'decoding' ? 'Añadiendo pistas' : 'Guardando pistas';
-  return total > 0 ? `${prefix}… (${current}/${total})` : `${prefix}…`;
+function addTracksProgressLabel(_phase: ProjectImportPhase, current: number, total: number): string {
+  return total > 0 ? `Añadiendo pistas… (${current}/${total})` : 'Añadiendo pistas…';
 }

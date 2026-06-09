@@ -102,6 +102,10 @@ export class AudioSessionCacheService {
     return this.budgetBytes;
   }
 
+  hasProject(projectId: string): boolean {
+    return this.entries.has(projectId);
+  }
+
   clear(): void {
     this.entries.clear();
     this.cachedBytes = 0;

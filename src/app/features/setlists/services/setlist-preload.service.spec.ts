@@ -128,6 +128,20 @@ describe('SetlistPreloadService playback warm', () => {
 
   });
 
+  it('counts as ready when the pack is already in session cache', () => {
+
+    const cache = TestBed.inject(AudioSessionCacheService);
+
+    cache.set('pack-2', 'fp', new Map([['t1', { length: 100, numberOfChannels: 2 } as AudioBuffer]]));
+
+    service.statusByPackId.set(new Map([['pack-2', 'pending']]));
+
+    expect(service.isReady('pack-2')).toBe(true);
+
+    expect(service.getStatus('pack-2')).toBe('ready');
+
+  });
+
 });
 
 

@@ -19,6 +19,7 @@ import {
   LucideUpload,
   LucideX,
 } from '../../../../shared/icons/app-lucide-icons';
+import { BackgroundWorkService } from '../../../../core/services/background-work.service';
 import { ProjectImportService } from '../../services/project-import.service';
 import { ProjectStorageService } from '../../services/project-storage.service';
 
@@ -41,6 +42,7 @@ import { ProjectStorageService } from '../../services/project-storage.service';
 export class ProjectsPageComponent {
   private readonly storage = inject(ProjectStorageService);
   private readonly importService = inject(ProjectImportService);
+  readonly backgroundWork = inject(BackgroundWorkService);
 
   readonly projects = signal<readonly Project[]>([]);
   readonly listLoading = signal(true);
@@ -50,22 +52,6 @@ export class ProjectsPageComponent {
   readonly selectedFiles = signal<File[]>([]);
   readonly createError = signal<string | null>(null);
   readonly isCreating = signal(false);
-  readonly createPhase = signal<'idle' | 'decoding' | 'persisting'>('idle');
-  readonly createProgress = signal<{ current: number; total: number } | null>(null);
-
-  readonly createPhaseMessage = computed(() => {
-    const progress = this.createProgress();
-    const suffix =
-      progress && progress.total > 0 ? ` (${progress.current}/${progress.total})` : '';
-    switch (this.createPhase()) {
-      case 'decoding':
-        return `Analizando archivos…${suffix}`;
-      case 'persisting':
-        return `Guardando en el dispositivo…${suffix}`;
-      default:
-        return '';
-    }
-  });
 
   readonly showCreateHint = computed(
     () => !this.isCreating() && (this.createDisabled() || this.createError() !== null),
@@ -77,23 +63,7 @@ export class ProjectsPageComponent {
 
   readonly editingTracksId = signal<string | null>(null);
   readonly tracksBusy = signal(false);
-  readonly tracksPhase = signal<'idle' | 'decoding' | 'persisting'>('idle');
-  readonly tracksProgress = signal<{ current: number; total: number } | null>(null);
   readonly tracksError = signal<string | null>(null);
-
-  readonly tracksPhaseMessage = computed(() => {
-    const progress = this.tracksProgress();
-    const suffix =
-      progress && progress.total > 0 ? ` (${progress.current}/${progress.total})` : '';
-    switch (this.tracksPhase()) {
-      case 'decoding':
-        return `Analizando archivos…${suffix}`;
-      case 'persisting':
-        return `Guardando en el dispositivo…${suffix}`;
-      default:
-        return '';
-    }
-  });
 
   private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   private readonly addTracksInput = viewChild<ElementRef<HTMLInputElement>>('addTracksInput');
@@ -145,16 +115,11 @@ export class ProjectsPageComponent {
       return;
     }
     this.createError.set(null);
-    this.createPhase.set('decoding');
     this.isCreating.set(true);
     try {
       await this.importService.createProjectFromImportedFiles(
         this.newProjectName(),
         this.selectedFiles(),
-        (phase, detail) => {
-          this.createPhase.set(phase);
-          this.createProgress.set(detail ?? null);
-        },
       );
       this.newProjectName.set('');
       this.clearFileSelection();
@@ -163,8 +128,6 @@ export class ProjectsPageComponent {
       this.createError.set(e instanceof Error ? e.message : String(e));
     } finally {
       this.isCreating.set(false);
-      this.createPhase.set('idle');
-      this.createProgress.set(null);
     }
   }
 
@@ -193,7 +156,6 @@ export class ProjectsPageComponent {
   cancelEditTracks(): void {
     this.editingTracksId.set(null);
     this.tracksError.set(null);
-    this.tracksPhase.set('idle');
     const el = this.addTracksInput()?.nativeElement;
     if (el) {
       el.value = '';
@@ -209,20 +171,14 @@ export class ProjectsPageComponent {
     }
 
     this.tracksError.set(null);
-    this.tracksPhase.set('decoding');
     this.tracksBusy.set(true);
     try {
-      await this.importService.addTracksToProject(projectId, files, (phase, detail) => {
-        this.tracksPhase.set(phase);
-        this.tracksProgress.set(detail ?? null);
-      });
+      await this.importService.addTracksToProject(projectId, files);
       await this.refreshProjects();
     } catch (e) {
       this.tracksError.set(e instanceof Error ? e.message : String(e));
     } finally {
       this.tracksBusy.set(false);
-      this.tracksPhase.set('idle');
-      this.tracksProgress.set(null);
     }
   }
 

@@ -233,6 +233,20 @@ export class PlayerPageComponent {
     return this.playback.liveMode() && !this.nextPackReady();
   });
 
+  readonly showNextPackPreloadHint = computed(() => {
+    if (
+      !this.hasSetlistNav() ||
+      this.pageLoading() ||
+      !this.hasNextPack() ||
+      !this.playback.liveMode() ||
+      this.nextPackReady()
+    ) {
+      return false;
+    }
+    const packId = this.nextEntryPackId();
+    return packId ? this.setlistPreload.getStatus(packId) === 'loading' : false;
+  });
+
   readonly previousPackDisabled = computed(
     () => !this.hasPreviousPack() || this.pageLoading(),
   );
@@ -268,7 +282,7 @@ export class PlayerPageComponent {
       return 'Precargando…';
     }
     if (status === 'error') {
-      return 'Error al precargar';
+      return 'Sin memoria';
     }
     return 'Pendiente';
   });
@@ -355,7 +369,9 @@ export class PlayerPageComponent {
       }
       const entries = sortSetlistEntriesByOrder(setlist.entries);
       const nextPackId = entries[index + 1]?.packId ?? null;
-      this.setlistPreload.pinSetlistPlayback(projectId, nextPackId);
+      const pinNext =
+        nextPackId && this.setlistPreload.isReady(nextPackId) ? nextPackId : null;
+      this.setlistPreload.pinSetlistPlayback(projectId, pinNext);
     });
 
     effect(() => {

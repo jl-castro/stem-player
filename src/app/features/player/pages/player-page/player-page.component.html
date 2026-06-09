@@ -50,8 +50,8 @@
     @if (!pageLoading() && hasInactiveStems()) {
       <p class="hint">Las pistas «Sin audio» no tienen archivo en este dispositivo.</p>
     }
-    @if (hasSetlistNav() && !pageLoading() && hasNextPack() && playback.liveMode() && !nextPackReady()) {
-      <p class="hint">El siguiente pack aún se está precargando. En modo en vivo, Siguiente se habilita cuando esté listo.</p>
+    @if (showNextPackPreloadHint()) {
+      <p class="hint">Precargando el siguiente pack… En modo en vivo, Siguiente se habilita al terminar.</p>
     }
   </header>
 

@@ -76,7 +76,27 @@ export class SetlistPreloadService {
 
   isReady(packId: string): boolean {
 
-    return this.getStatus(packId) === 'ready';
+    if (this.getStatus(packId) === 'ready') {
+
+      return true;
+
+    }
+
+    if (this.sessionCache.hasProject(packId)) {
+
+      if (this.getStatus(packId) === 'loading') {
+
+        this.inFlight.delete(packId);
+
+      }
+
+      this.patchStatus(packId, 'ready');
+
+      return true;
+
+    }
+
+    return false;
 
   }
 
@@ -284,9 +304,13 @@ export class SetlistPreloadService {
 
     if (keepPackId) {
 
-      this.sessionCache.evictExcept([keepPackId]);
+      // El pack actual suena desde el motor; vaciar la caché libera RAM para precargar el siguiente.
 
-      this.patchEvictedPackStatuses([keepPackId, packId]);
+      this.sessionCache.clear();
+
+      this.sessionCache.clearPinnedProjectIds();
+
+      this.patchEvictedPackStatuses([packId]);
 
     }
 
@@ -324,11 +348,17 @@ export class SetlistPreloadService {
 
       }
 
-      const status: PackPreloadStatus = result === 'failed' ? 'pending' : 'ready';
+      if (result === 'failed') {
 
-      this.patchStatus(packId, status);
+        this.patchStatus(packId, 'error');
 
-      return status;
+        return 'error';
+
+      }
+
+      this.patchStatus(packId, 'ready');
+
+      return 'ready';
 
     } catch (error) {
 

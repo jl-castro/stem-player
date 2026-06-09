@@ -51,17 +51,13 @@
           class="btn btn--primary btn--create"
           [disabled]="createDisabled()"
           [attr.aria-busy]="isCreating()"
-          [attr.aria-label]="isCreating() ? createPhaseMessage() : 'Crear pack'"
+          [attr.aria-label]="isCreating() ? backgroundWork.statusLine() : 'Crear pack'"
           [attr.aria-describedby]="showCreateHint() ? 'create-hint' : null"
           (click)="onCreateProject()"
         >
           {{ isCreating() ? '…' : 'Crear' }}
         </button>
       </div>
-
-      @if (isCreating() && createPhaseMessage()) {
-        <p class="create-status loading-hint loading-hint--pulse" role="status">{{ createPhaseMessage() }}</p>
-      }
 
       @if (createError(); as cErr) {
         <div class="banner banner--error banner--compact" role="alert">{{ cErr }}</div>
@@ -225,11 +221,6 @@
                   </label>
                 </div>
 
-                @if (tracksBusy() && tracksPhaseMessage()) {
-                  <p class="tracks-editor__status loading-hint loading-hint--pulse" role="status">
-                    {{ tracksPhaseMessage() }}
-                  </p>
-                }
               </div>
             }
           </li>

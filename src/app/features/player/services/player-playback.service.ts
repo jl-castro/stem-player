@@ -106,6 +106,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     const tracksWithKey = copy.tracks.filter((t) => !!t.storedAssetKey);
 
     if (!sameProject) {
+      const preloadedInCache = this.sessionCache.hasProject(project.id);
       this.loadedProjectId = null;
       this.project = null;
       this.loadedStemIds.clear();
@@ -113,7 +114,11 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       this.sessionCache.clearPinnedProjectIds();
       this.decode.cancelAllPending();
       this.engine.haltPlayback();
-      this.engine.reset();
+      if (preloadedInCache) {
+        this.engine.unmountStems();
+      } else {
+        this.engine.reset();
+      }
     } else {
       this.engine.haltPlayback();
       this.engine.unmountStems();
