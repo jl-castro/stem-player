@@ -1,162 +1,489 @@
 import { Injectable, inject, signal } from '@angular/core';
 
+
+
 import type { Setlist } from '../../../core/models';
+
+import {
+
+  BackgroundWorkService,
+
+  isBackgroundWorkAborted,
+
+} from '../../../core/services/background-work.service';
+
 import { AudioSessionCacheService } from '../../../core/services/audio-session-cache.service';
+
 import { sortSetlistEntriesByOrder } from '../../../core/utils/setlist-order.util';
+
 import { ProjectStorageService } from '../../projects/services/project-storage.service';
+
 import { PlayerPlaybackService } from '../../player/services/player-playback.service';
+
+
 
 export type PackPreloadStatus = 'pending' | 'loading' | 'ready' | 'error';
 
-export interface SetlistPreloadProgress {
-  loaded: number;
-  total: number;
-  label: string;
-}
 
-export interface WarmSetlistResult {
-  readyCount: number;
-  total: number;
-}
+
+const PLAYBACK_HALF_PROGRESS = 0.5;
+
+
 
 @Injectable({ providedIn: 'root' })
+
 export class SetlistPreloadService {
+
   private readonly storage = inject(ProjectStorageService);
+
   private readonly playback = inject(PlayerPlaybackService);
+
   private readonly sessionCache = inject(AudioSessionCacheService);
 
+  private readonly backgroundWork = inject(BackgroundWorkService);
+
+
+
   readonly statusByPackId = signal<ReadonlyMap<string, PackPreloadStatus>>(new Map());
-  readonly setlistPreloadProgress = signal<SetlistPreloadProgress | null>(null);
+
+
 
   private readonly inFlight = new Set<string>();
 
-  getStatus(packId: string): PackPreloadStatus {
-    return this.statusByPackId().get(packId) ?? 'pending';
+  private readonly halfwayWarmTriggered = new Set<string>();
+
+  private activePlaybackSetlistId: string | null = null;
+
+  private activeWarm: { signal: AbortSignal; complete: () => void } | null = null;
+
+
+
+  constructor() {
+
+    this.backgroundWork.onCancel(() => this.resetAfterCancel());
+
   }
+
+
+
+  getStatus(packId: string): PackPreloadStatus {
+
+    return this.statusByPackId().get(packId) ?? 'pending';
+
+  }
+
+
 
   isReady(packId: string): boolean {
+
     return this.getStatus(packId) === 'ready';
+
   }
 
-  refreshStatusForPack(packId: string, project?: Awaited<ReturnType<ProjectStorageService['getProjectById']>>): void {
-    void this.syncPackStatus(packId, project);
+
+
+  switchToSetlistContext(setlistId: string | null): void {
+
+    if (
+
+      this.activePlaybackSetlistId &&
+
+      (setlistId === null || setlistId !== this.activePlaybackSetlistId)
+
+    ) {
+
+      this.clearPlaybackCache();
+
+    }
+
+    if (setlistId) {
+
+      this.activePlaybackSetlistId = setlistId;
+
+    }
+
   }
 
-  async warmPackById(packId: string): Promise<PackPreloadStatus> {
-    if (this.inFlight.has(packId)) {
-      return this.getStatus(packId);
-    }
 
-    const project = await this.storage.getProjectById(packId);
-    if (!project) {
-      this.patchStatus(packId, 'error');
-      return 'error';
-    }
 
-    if (this.playback.isProjectWarm(project)) {
-      this.patchStatus(packId, 'ready');
-      return 'ready';
-    }
+  clearPlaybackCache(): void {
 
-    this.inFlight.add(packId);
-    this.patchStatus(packId, 'loading');
-    try {
-      const result = await this.playback.warmProjectInCache(project);
-      const status: PackPreloadStatus =
-        result === 'failed' ? 'error' : 'ready';
-      this.patchStatus(packId, status);
-      return status;
-    } catch {
-      this.patchStatus(packId, 'error');
-      return 'error';
-    } finally {
-      this.inFlight.delete(packId);
-    }
+    this.cancelActiveWarm();
+
+    this.activePlaybackSetlistId = null;
+
+    this.halfwayWarmTriggered.clear();
+
+    this.sessionCache.clear();
+
+    this.sessionCache.clearPinnedProjectIds();
+
+    this.statusByPackId.set(new Map());
+
   }
+
+
+
+  invalidateSetlistCacheIfActive(setlistId: string): void {
+
+    if (this.activePlaybackSetlistId === setlistId) {
+
+      this.clearPlaybackCache();
+
+    }
+
+  }
+
+
+
+  /** Antes de cargar otro pack: cancela precarga en vuelo y deja solo el destino en caché. */
+
+  prepareForPackNavigation(targetPackId: string): void {
+
+    this.cancelActiveWarm();
+
+    this.sessionCache.evictExcept([targetPackId]);
+
+    this.sessionCache.clearPinnedProjectIds();
+
+    this.patchEvictedPackStatuses([targetPackId]);
+
+  }
+
+
+
+  warmNextWhenHalfway(
+
+    setlist: Readonly<Setlist>,
+
+    entryIndex: number,
+
+    currentTimeMs: number,
+
+    durationMs: number,
+
+    isPlaying: boolean,
+
+  ): void {
+
+    if (!isPlaying || durationMs <= 0) {
+
+      return;
+
+    }
+
+    if (currentTimeMs < durationMs * PLAYBACK_HALF_PROGRESS) {
+
+      return;
+
+    }
+
+
+
+    const key = `${setlist.id}:${entryIndex}`;
+
+    if (this.halfwayWarmTriggered.has(key)) {
+
+      return;
+
+    }
+
+
+
+    const entries = sortSetlistEntriesByOrder(setlist.entries);
+
+    const current = entries[entryIndex];
+
+    const next = entries[entryIndex + 1];
+
+    if (!current || !next) {
+
+      return;
+
+    }
+
+
+
+    if (this.isReady(next.packId)) {
+
+      this.halfwayWarmTriggered.add(key);
+
+      return;
+
+    }
+
+
+
+    this.halfwayWarmTriggered.add(key);
+
+    this.activePlaybackSetlistId = setlist.id;
+
+    void this.warmPackById(next.packId, current.packId);
+
+  }
+
+
 
   warmNextInSetlist(setlist: Readonly<Setlist>, currentEntryIndex: number): void {
+
     const entries = sortSetlistEntriesByOrder(setlist.entries);
+
+    const current = entries[currentEntryIndex];
+
     const next = entries[currentEntryIndex + 1];
+
     if (next) {
-      void this.warmPackById(next.packId);
+
+      void this.warmPackById(next.packId, current?.packId);
+
     }
+
   }
 
-  async warmSetlist(setlist: Readonly<Setlist>): Promise<WarmSetlistResult> {
-    const entries = sortSetlistEntriesByOrder(setlist.entries);
-    if (entries.length === 0) {
-      return { readyCount: 0, total: 0 };
+
+
+  async warmPackById(
+
+    packId: string,
+
+    keepPackId?: string,
+
+    externalSignal?: AbortSignal,
+
+  ): Promise<PackPreloadStatus> {
+
+    if (this.inFlight.has(packId)) {
+
+      return this.getStatus(packId);
+
     }
 
-    const packIds = entries.map((e) => e.packId);
-    this.sessionCache.setPinnedProjectIds(packIds);
 
-    const total = entries.length;
-    for (let i = 0; i < entries.length; i += 1) {
-      const entry = entries[i]!;
-      this.setlistPreloadProgress.set({
-        loaded: i,
-        total,
-        label: `Precargando pack ${i + 1} de ${total}…`,
-      });
-      await this.warmPackById(entry.packId);
+
+    const project = await this.storage.getProjectById(packId);
+
+    if (!project) {
+
+      this.patchStatus(packId, 'error');
+
+      return 'error';
+
     }
 
-    const readyCount = await this.refreshAllPackStatuses(packIds);
-    this.setlistPreloadProgress.set({
-      loaded: readyCount,
-      total,
-      label:
-        readyCount === total
-          ? 'Setlist listo'
-          : `${readyCount} de ${total} packs en memoria`,
+
+
+    if (this.playback.isProjectWarm(project) || this.playback.isProjectCached(project)) {
+
+      this.patchStatus(packId, 'ready');
+
+      return 'ready';
+
+    }
+
+
+
+    if (keepPackId) {
+
+      this.sessionCache.evictExcept([keepPackId]);
+
+      this.patchEvictedPackStatuses([keepPackId, packId]);
+
+    }
+
+
+
+    this.inFlight.add(packId);
+
+    this.patchStatus(packId, 'loading');
+
+    const trackHandle = this.backgroundWork.track('cache-warm', 'Precargando siguiente pack…');
+
+    const operation = externalSignal
+
+      ? { signal: externalSignal, complete: () => {} }
+
+      : this.beginWarmOperation();
+
+    try {
+
+      if (operation.signal.aborted) {
+
+        this.patchStatus(packId, 'pending');
+
+        return 'pending';
+
+      }
+
+      const result = await this.playback.warmProjectInCache(project, operation.signal);
+
+      if (operation.signal.aborted) {
+
+        this.patchStatus(packId, 'pending');
+
+        return 'pending';
+
+      }
+
+      const status: PackPreloadStatus = result === 'failed' ? 'pending' : 'ready';
+
+      this.patchStatus(packId, status);
+
+      return status;
+
+    } catch (error) {
+
+      if (isBackgroundWorkAborted(error)) {
+
+        this.patchStatus(packId, 'pending');
+
+        return 'pending';
+
+      }
+
+      this.patchStatus(packId, 'error');
+
+      return 'error';
+
+    } finally {
+
+      if (!externalSignal) {
+
+        operation.complete();
+
+        if (this.activeWarm === operation) {
+
+          this.activeWarm = null;
+
+        }
+
+      }
+
+      trackHandle.release();
+
+      this.inFlight.delete(packId);
+
+    }
+
+  }
+
+
+
+  pinSetlistPlayback(currentPackId: string, nextPackId: string | null): void {
+
+    this.sessionCache.setPinnedProjectIds(
+
+      nextPackId ? [currentPackId, nextPackId] : [currentPackId],
+
+    );
+
+  }
+
+
+
+  clearSetlistPlaybackPins(): void {
+
+    this.sessionCache.clearPinnedProjectIds();
+
+    this.activePlaybackSetlistId = null;
+
+    this.halfwayWarmTriggered.clear();
+
+  }
+
+
+
+  private beginWarmOperation(): { signal: AbortSignal; complete: () => void } {
+
+    this.cancelActiveWarm();
+
+    const operation = this.backgroundWork.beginOperation();
+
+    this.activeWarm = operation;
+
+    return operation;
+
+  }
+
+
+
+  private cancelActiveWarm(): void {
+
+    if (!this.activeWarm) {
+
+      return;
+
+    }
+
+    this.activeWarm.complete();
+
+    this.activeWarm = null;
+
+    for (const packId of this.inFlight) {
+
+      if (this.getStatus(packId) === 'loading') {
+
+        this.patchStatus(packId, 'pending');
+
+      }
+
+    }
+
+    this.inFlight.clear();
+
+  }
+
+
+
+  private patchEvictedPackStatuses(keepPackIds: readonly string[]): void {
+
+    const keep = new Set(keepPackIds);
+
+    this.statusByPackId.update((current) => {
+
+      const next = new Map(current);
+
+      for (const [packId, status] of next) {
+
+        if ((status === 'ready' || status === 'loading') && !keep.has(packId)) {
+
+          next.set(packId, 'pending');
+
+        }
+
+      }
+
+      return next;
+
     });
 
-    return { readyCount, total };
   }
 
-  clearSetlistPreloadProgress(): void {
-    this.setlistPreloadProgress.set(null);
-  }
 
-  preloadCompleteMessage(result: WarmSetlistResult): string {
-    if (result.total === 0) {
-      return '';
-    }
-    if (result.readyCount === result.total) {
-      return 'Setlist listo para el show';
-    }
-    return `${result.readyCount} de ${result.total} packs en memoria (el resto cargará al reproducir)`;
-  }
-
-  private async refreshAllPackStatuses(packIds: readonly string[]): Promise<number> {
-    let readyCount = 0;
-    for (const packId of packIds) {
-      await this.syncPackStatus(packId);
-      if (this.getStatus(packId) === 'ready') {
-        readyCount += 1;
-      }
-    }
-    return readyCount;
-  }
-
-  private async syncPackStatus(
-    packId: string,
-    project?: Awaited<ReturnType<ProjectStorageService['getProjectById']>>,
-  ): Promise<void> {
-    const p = project ?? (await this.storage.getProjectById(packId));
-    if (!p) {
-      this.patchStatus(packId, 'error');
-      return;
-    }
-    this.patchStatus(packId, this.playback.isProjectWarm(p) ? 'ready' : 'pending');
-  }
 
   private patchStatus(packId: string, status: PackPreloadStatus): void {
+
     this.statusByPackId.update((current) => {
+
       const next = new Map(current);
+
       next.set(packId, status);
+
       return next;
+
     });
+
   }
+
+
+
+  private resetAfterCancel(): void {
+
+    this.cancelActiveWarm();
+
+    this.clearPlaybackCache();
+
+  }
+
 }
+
+

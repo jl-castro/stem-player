@@ -23,12 +23,6 @@
         <div class="banner banner--error banner--compact" role="alert">{{ eErr }}</div>
       }
 
-      @if (setlistPreloadProgress(); as pp) {
-        <p class="loading-hint loading-hint--pulse list-status" role="status">
-          {{ pp.label }} ({{ pp.loaded }}/{{ pp.total }})
-        </p>
-      }
-
       <div class="detail-actions">
         <button
           type="button"
@@ -38,15 +32,6 @@
         >
           <svg lucidePlay [size]="16" aria-hidden="true"></svg>
           <span>Iniciar</span>
-        </button>
-        <button
-          type="button"
-          class="btn btn--ghost"
-          [disabled]="pageBusy() || sl.entries.length === 0"
-          [attr.aria-busy]="preloading()"
-          (click)="onPreload()"
-        >
-          {{ preloading() ? 'Precargando…' : 'Precargar' }}
         </button>
       </div>
 
@@ -69,12 +54,6 @@
               >
                 {{ packName(entry.packId) }}
               </a>
-              <span
-                class="setlist-entry__status"
-                [attr.data-status]="setlistPreload.getStatus(entry.packId)"
-              >
-                {{ preloadStatusLabel(entry.packId) }}
-              </span>
               <button
                 type="button"
                 class="btn btn--small btn--danger btn--icon btn--icon-only"

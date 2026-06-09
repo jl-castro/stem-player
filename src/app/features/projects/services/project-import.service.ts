@@ -3,6 +3,11 @@ import { Injectable, inject } from '@angular/core';
 import type { Project, StemTrack } from '../../../core/models';
 import { AudioDecodeService } from '../../../core/services/audio-decode.service';
 import {
+  BackgroundWorkService,
+  isBackgroundWorkAborted,
+} from '../../../core/services/background-work.service';
+import { AudioSessionCacheService } from '../../../core/services/audio-session-cache.service';
+import {
   basenameWithoutExt,
   guessMimeFromFileName,
   isAllowedAudioFile,
@@ -10,7 +15,6 @@ import {
 } from '../../../core/utils/audio-import';
 import { sha256HexFromBlob } from '../../../core/utils/blob-hash';
 import { recalculateTrackOrders, sortTracksByOrder } from '../../../core/utils/track-order.util';
-import { AudioSessionCacheService } from '../../../core/services/audio-session-cache.service';
 import { ProjectStorageService } from './project-storage.service';
 
 export type ProjectImportPhase = 'decoding' | 'persisting';
@@ -20,6 +24,7 @@ export class ProjectImportService {
   private readonly storage = inject(ProjectStorageService);
   private readonly decode = inject(AudioDecodeService);
   private readonly sessionCache = inject(AudioSessionCacheService);
+  private readonly backgroundWork = inject(BackgroundWorkService);
 
   /**
    * Crea proyecto + stems: decodifica en worker (duración + caché PCM), guarda blobs, luego `saveProject`.
@@ -51,74 +56,97 @@ export class ProjectImportService {
 
     onProgress?.('decoding', { current: 0, total: files.length });
 
-    const decoded: { file: File; durationMs: number; order: number; pcm: Awaited<ReturnType<AudioDecodeService['decodeBlobToPcm']>>; contentHash: string }[] = [];
-    let order = 0;
-    let current = 0;
-
-    for (const file of files) {
-      current += 1;
-      onProgress?.('decoding', { current, total: files.length });
-      try {
-        const contentHash = await sha256HexFromBlob(file);
-        const pcm = await this.decode.decodeBlobToPcm(file);
-        decoded.push({ file, durationMs: pcm.durationMs, order, pcm, contentHash });
-        order += 1;
-      } catch (e) {
-        const detail = e instanceof Error ? e.message : String(e);
-        throw new Error(`No se pudo leer "${file.name}". ${detail}`);
-      }
-    }
-
-    onProgress?.('persisting', { current: 0, total: decoded.length });
-
-    let persistIndex = 0;
-    for (const { file, durationMs, order: trackOrder, pcm, contentHash } of decoded) {
-      persistIndex += 1;
-      onProgress?.('persisting', { current: persistIndex, total: decoded.length });
-
-      const trackId = crypto.randomUUID();
-      const key = await this.storage.saveTrackAsset(projectId, trackId, file);
-      keysCollected.push(key);
-      await this.storage.saveDecodedCache(key, contentHash, pcm);
-
-      tracks.push({
-        id: trackId,
-        fileName: file.name,
-        displayName: basenameWithoutExt(file.name),
-        color: stemColorForIndex(trackOrder),
-        order: trackOrder,
-        durationMs,
-        volume: 1,
-        pan: 'center',
-        muted: false,
-        solo: false,
-        mimeType: file.type || guessMimeFromFileName(file.name),
-        sizeBytes: file.size,
-        storedAssetKey: key,
-      });
-    }
-
-    const project: Project = {
-      id: projectId,
-      name: trimmed,
-      createdAt: now,
-      updatedAt: now,
-      tracks,
-      masterVolume: 1,
-    };
+    const trackHandle = this.backgroundWork.track('import', 'Importando pack…');
 
     try {
-      await this.storage.saveProject(project);
-      return project;
-    } catch (e) {
-      for (const key of keysCollected) {
+      const decoded: { file: File; durationMs: number; order: number; pcm: Awaited<ReturnType<AudioDecodeService['decodeBlobToPcm']>>; contentHash: string }[] = [];
+      let order = 0;
+      let current = 0;
+
+      for (const file of files) {
+        this.backgroundWork.throwIfAborted();
+        current += 1;
+        onProgress?.('decoding', { current, total: files.length });
         try {
-          await this.storage.deleteTrackAsset(key);
-        } catch {
-          /* ignore cleanup errors */
+          const contentHash = await sha256HexFromBlob(file);
+          const pcm = await this.decode.decodeBlobToPcm(file);
+          decoded.push({ file, durationMs: pcm.durationMs, order, pcm, contentHash });
+          order += 1;
+        } catch (e) {
+          if (isBackgroundWorkAborted(e)) {
+            throw e;
+          }
+          const detail = e instanceof Error ? e.message : String(e);
+          throw new Error(`No se pudo leer "${file.name}". ${detail}`);
         }
       }
-      throw e;
+
+      onProgress?.('persisting', { current: 0, total: decoded.length });
+
+      let persistIndex = 0;
+      for (const { file, durationMs, order: trackOrder, pcm, contentHash } of decoded) {
+        this.backgroundWork.throwIfAborted();
+        persistIndex += 1;
+        onProgress?.('persisting', { current: persistIndex, total: decoded.length });
+
+        const trackId = crypto.randomUUID();
+        const key = await this.storage.saveTrackAsset(projectId, trackId, file);
+        keysCollected.push(key);
+        await this.storage.saveDecodedCache(key, contentHash, pcm);
+
+        tracks.push({
+          id: trackId,
+          fileName: file.name,
+          displayName: basenameWithoutExt(file.name),
+          color: stemColorForIndex(trackOrder),
+          order: trackOrder,
+          durationMs,
+          volume: 1,
+          pan: 'center',
+          muted: false,
+          solo: false,
+          mimeType: file.type || guessMimeFromFileName(file.name),
+          sizeBytes: file.size,
+          storedAssetKey: key,
+        });
+      }
+
+      const project: Project = {
+        id: projectId,
+        name: trimmed,
+        createdAt: now,
+        updatedAt: now,
+        tracks,
+        masterVolume: 1,
+      };
+
+      try {
+        await this.storage.saveProject(project);
+        return project;
+      } catch (e) {
+        for (const key of keysCollected) {
+          try {
+            await this.storage.deleteTrackAsset(key);
+          } catch {
+            /* ignore cleanup errors */
+          }
+        }
+        throw e;
+      }
+    } catch (error) {
+      if (isBackgroundWorkAborted(error)) {
+        for (const key of keysCollected) {
+          try {
+            await this.storage.deleteTrackAsset(key);
+          } catch {
+            /* ignore cleanup errors */
+          }
+        }
+        throw new Error('Importación cancelada');
+      }
+      throw error;
+    } finally {
+      trackHandle.release();
     }
   }
 
@@ -150,82 +178,105 @@ export class ProjectImportService {
 
     onProgress?.('decoding', { current: 0, total: files.length });
 
-    const decoded: {
-      file: File;
-      durationMs: number;
-      pcm: Awaited<ReturnType<AudioDecodeService['decodeBlobToPcm']>>;
-      contentHash: string;
-    }[] = [];
-    let current = 0;
-
-    for (const file of files) {
-      current += 1;
-      onProgress?.('decoding', { current, total: files.length });
-      try {
-        const contentHash = await sha256HexFromBlob(file);
-        const pcm = await this.decode.decodeBlobToPcm(file);
-        decoded.push({ file, durationMs: pcm.durationMs, pcm, contentHash });
-      } catch (e) {
-        const detail = e instanceof Error ? e.message : String(e);
-        throw new Error(`No se pudo leer "${file.name}". ${detail}`);
-      }
-    }
-
-    onProgress?.('persisting', { current: 0, total: decoded.length });
-
-    let persistIndex = 0;
-    for (const { file, durationMs, pcm, contentHash } of decoded) {
-      persistIndex += 1;
-      onProgress?.('persisting', { current: persistIndex, total: decoded.length });
-
-      const trackId = crypto.randomUUID();
-      const key = await this.storage.saveTrackAsset(projectId, trackId, file);
-      keysCollected.push(key);
-      await this.storage.saveDecodedCache(key, contentHash, pcm);
-
-      addedTracks.push({
-        id: trackId,
-        fileName: file.name,
-        displayName: basenameWithoutExt(file.name),
-        color: stemColorForIndex(order),
-        order,
-        durationMs,
-        volume: 1,
-        pan: 'center',
-        muted: false,
-        solo: false,
-        mimeType: file.type || guessMimeFromFileName(file.name),
-        sizeBytes: file.size,
-        storedAssetKey: key,
-      });
-      order += 1;
-    }
-
-    const tracks = sortTracksByOrder([
-      ...existing.tracks.map((t) => ({ ...t })),
-      ...addedTracks,
-    ]);
-    recalculateTrackOrders(tracks);
-
-    const project: Project = {
-      ...existing,
-      tracks,
-      updatedAt: new Date().toISOString(),
-    };
+    const trackHandle = this.backgroundWork.track('import', 'Añadiendo pistas…');
 
     try {
-      await this.storage.saveProject(project);
-      this.sessionCache.clearIfProject(projectId);
-      return project;
-    } catch (e) {
-      for (const key of keysCollected) {
+      const decoded: {
+        file: File;
+        durationMs: number;
+        pcm: Awaited<ReturnType<AudioDecodeService['decodeBlobToPcm']>>;
+        contentHash: string;
+      }[] = [];
+      let current = 0;
+
+      for (const file of files) {
+        this.backgroundWork.throwIfAborted();
+        current += 1;
+        onProgress?.('decoding', { current, total: files.length });
         try {
-          await this.storage.deleteTrackAsset(key);
-        } catch {
-          /* ignore cleanup errors */
+          const contentHash = await sha256HexFromBlob(file);
+          const pcm = await this.decode.decodeBlobToPcm(file);
+          decoded.push({ file, durationMs: pcm.durationMs, pcm, contentHash });
+        } catch (e) {
+          if (isBackgroundWorkAborted(e)) {
+            throw e;
+          }
+          const detail = e instanceof Error ? e.message : String(e);
+          throw new Error(`No se pudo leer "${file.name}". ${detail}`);
         }
       }
-      throw e;
+
+      onProgress?.('persisting', { current: 0, total: decoded.length });
+
+      let persistIndex = 0;
+      for (const { file, durationMs, pcm, contentHash } of decoded) {
+        this.backgroundWork.throwIfAborted();
+        persistIndex += 1;
+        onProgress?.('persisting', { current: persistIndex, total: decoded.length });
+
+        const trackId = crypto.randomUUID();
+        const key = await this.storage.saveTrackAsset(projectId, trackId, file);
+        keysCollected.push(key);
+        await this.storage.saveDecodedCache(key, contentHash, pcm);
+
+        addedTracks.push({
+          id: trackId,
+          fileName: file.name,
+          displayName: basenameWithoutExt(file.name),
+          color: stemColorForIndex(order),
+          order,
+          durationMs,
+          volume: 1,
+          pan: 'center',
+          muted: false,
+          solo: false,
+          mimeType: file.type || guessMimeFromFileName(file.name),
+          sizeBytes: file.size,
+          storedAssetKey: key,
+        });
+        order += 1;
+      }
+
+      const tracks = sortTracksByOrder([
+        ...existing.tracks.map((t) => ({ ...t })),
+        ...addedTracks,
+      ]);
+      recalculateTrackOrders(tracks);
+
+      const project: Project = {
+        ...existing,
+        tracks,
+        updatedAt: new Date().toISOString(),
+      };
+
+      try {
+        await this.storage.saveProject(project);
+        this.sessionCache.clearIfProject(projectId);
+        return project;
+      } catch (e) {
+        for (const key of keysCollected) {
+          try {
+            await this.storage.deleteTrackAsset(key);
+          } catch {
+            /* ignore cleanup errors */
+          }
+        }
+        throw e;
+      }
+    } catch (error) {
+      if (isBackgroundWorkAborted(error)) {
+        for (const key of keysCollected) {
+          try {
+            await this.storage.deleteTrackAsset(key);
+          } catch {
+            /* ignore cleanup errors */
+          }
+        }
+        throw new Error('Importación cancelada');
+      }
+      throw error;
+    } finally {
+      trackHandle.release();
     }
   }
 

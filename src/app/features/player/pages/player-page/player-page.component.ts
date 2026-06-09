@@ -325,6 +325,7 @@ export class PlayerPageComponent {
 
     this.destroyRef.onDestroy(() => {
       void this.wakeLock.releaseLock();
+      this.setlistPreload.clearSetlistPlaybackPins();
       this.playback.detachFromPlayer();
       this.mixerResizeObserver?.disconnect();
       if (typeof window !== 'undefined') {
@@ -337,15 +338,35 @@ export class PlayerPageComponent {
     }
 
     effect(() => {
+      const setlist = this.activeSetlist();
+      const index = this.activeEntryIndex();
+      const projectId = this.playback.state().projectId;
+      if (!setlist || !projectId) {
+        this.setlistPreload.clearSetlistPlaybackPins();
+        return;
+      }
+      const entries = sortSetlistEntriesByOrder(setlist.entries);
+      const nextPackId = entries[index + 1]?.packId ?? null;
+      this.setlistPreload.pinSetlistPlayback(projectId, nextPackId);
+    });
+
+    effect(() => {
       if (this.pageLoading()) {
         return;
       }
       const setlist = this.activeSetlist();
       const index = this.activeEntryIndex();
-      const status = this.playback.state().status;
-      if (setlist && (status === 'playing' || status === 'ready' || status === 'paused')) {
-        this.setlistPreload.warmNextInSetlist(setlist, index);
+      const st = this.playback.state();
+      if (!setlist) {
+        return;
       }
+      this.setlistPreload.warmNextWhenHalfway(
+        setlist,
+        index,
+        st.currentTimeMs,
+        st.durationMs,
+        st.status === 'playing',
+      );
     });
 
     combineLatest([this.route.paramMap, this.route.queryParamMap])
@@ -369,6 +390,8 @@ export class PlayerPageComponent {
           const setlistId = qm.get('setlist');
           const entryRaw = qm.get('entry');
           const shouldAutoplay = qm.get('autoplay') === '1';
+
+          this.setlistPreload.switchToSetlistContext(setlistId);
 
           return from(
             Promise.all([
@@ -410,15 +433,14 @@ export class PlayerPageComponent {
                 this.setlistPackNames.set(new Map());
               }
 
+              this.setlistPreload.prepareForPackNavigation(project.id);
+
               return from(this.playback.loadProject(project)).pipe(
                 tap(() => {
                   const st = this.playback.state();
                   if (st.status === 'error') {
                     this.pageError.set(st.errorMessage ?? 'No se pudo preparar el audio.');
                   } else {
-                    if (setlist) {
-                      this.setlistPreload.warmNextInSetlist(setlist, this.activeEntryIndex());
-                    }
                     if (shouldAutoplay && st.canPlay) {
                       queueMicrotask(() => this.playback.play());
                     }

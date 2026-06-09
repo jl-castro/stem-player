@@ -6,10 +6,20 @@ import { createInitialPlayerState, type PlayerState } from '../../../core/models
 import { AudioDecodeService } from '../../../core/services/audio-decode.service';
 import { AudioEngineService } from '../../../core/services/audio-engine.service';
 import {
+  BackgroundWorkAbortedError,
+  BackgroundWorkService,
+  isBackgroundWorkAborted,
+} from '../../../core/services/background-work.service';
+import {
   AudioSessionCacheService,
   buildAssetKeysFingerprint,
 } from '../../../core/services/audio-session-cache.service';
+import { releaseDecodedPcm } from '../../../core/audio/decoded-pcm';
 import { mapWithConcurrency } from '../../../core/utils/async-pool';
+import {
+  estimateAudioBuffersRamBytes,
+  pickTrackLoadConcurrency,
+} from '../../../core/utils/audio-memory';
 import { sha256HexFromBlob } from '../../../core/utils/blob-hash';
 import {
   recalculateTrackOrders,
@@ -21,6 +31,8 @@ import { ProjectStorageService } from '../../projects/services/project-storage.s
 const LIVE_MODE_KEY = 'stem-player-live-mode';
 const MIX_SAVE_DEBOUNCE_MS = 450;
 const TRACK_LOAD_CONCURRENCY = 4;
+/** Precarga en segundo plano: una pista a la vez para no duplicar PCM+AudioBuffer en RAM. */
+const TRACK_WARM_CONCURRENCY = 1;
 
 type LoadTrackResult =
   | { ok: true; trackId: string; buffer: AudioBuffer; durationMs: number }
@@ -52,6 +64,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
   private readonly decode = inject(AudioDecodeService);
   private readonly storage = inject(ProjectStorageService);
   private readonly sessionCache = inject(AudioSessionCacheService);
+  private readonly backgroundWork = inject(BackgroundWorkService);
 
   readonly state = signal<PlayerState>(createInitialPlayerState());
   readonly loadedProject = signal<Project | null>(null);
@@ -90,14 +103,21 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     const copy = this.prepareProjectCopy(project);
     const sameProject = this.loadedProjectId === project.id;
 
+    const tracksWithKey = copy.tracks.filter((t) => !!t.storedAssetKey);
+
     if (!sameProject) {
       this.loadedProjectId = null;
       this.project = null;
       this.loadedStemIds.clear();
+      this.sessionCache.evictExcept([project.id]);
+      this.sessionCache.clearPinnedProjectIds();
+      this.decode.cancelAllPending();
+      this.engine.haltPlayback();
+      this.engine.reset();
+    } else {
+      this.engine.haltPlayback();
+      this.engine.unmountStems();
     }
-
-    this.engine.haltPlayback();
-    this.engine.unmountStems();
 
     this.loadedProject.set(null);
     this.loadSummary.set(null);
@@ -124,114 +144,141 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       });
     };
 
+    const trackHandle = this.backgroundWork.track('decode', `Cargando ${project.name}…`);
+
     try {
-      await this.engine.ensureAudioContext();
-    } catch (e) {
-      fail(e instanceof Error ? e.message : String(e));
-      return;
-    }
+      try {
+        await this.engine.ensureAudioContext();
+      } catch (e) {
+        fail(e instanceof Error ? e.message : String(e));
+        return;
+      }
 
-    const tracksWithKey = copy.tracks.filter((t) => !!t.storedAssetKey);
-    if (copy.tracks.length > 0 && tracksWithKey.length === 0) {
-      fail(
-        'Este pack no tiene archivos de audio guardados. En Packs, importa al menos un MP3, WAV o M4A para cada pista.',
-      );
-      return;
-    }
-
-    const resolved = await this.resolveProjectBuffers(copy, (progress) =>
-      this.loadProgress.set(progress),
-    );
-    const { buffers, issues } = resolved;
-    this.loadProgress.set(null);
-
-    if (buffers.size === 0) {
-      const detail = issues.length ? ` Detalle: ${issues.join('; ')}` : '';
-      const allBlobMissing =
-        tracksWithKey.length > 0 &&
-        issues.length === tracksWithKey.length &&
-        issues.every((msg) => msg.includes('no encontrado'));
-      if (allBlobMissing) {
+      if (copy.tracks.length > 0 && tracksWithKey.length === 0) {
         fail(
-          `No se encontraron los archivos de audio en el almacén local del navegador. Puede que se hayan borrado los datos del sitio o el pack esté corrupto.${detail}`,
+          'Este pack no tiene archivos de audio guardados. En Packs, importa al menos un MP3, WAV o M4A para cada pista.',
         );
-      } else {
-        fail(`No se pudo preparar ninguna pista para reproducir.${detail}`);
+        return;
       }
-      return;
-    }
 
-    this.sessionCache.set(project.id, resolved.fingerprint, buffers);
-
-    try {
-      this.engine.mountDecodedStems(buffers);
-    } catch (e) {
-      fail(e instanceof Error ? e.message : String(e));
-      return;
-    }
-
-    this.loadedStemIds = new Set(buffers.keys());
-    this.loadedProjectId = project.id;
-
-    for (const t of copy.tracks) {
-      if (!buffers.has(t.id)) {
-        continue;
+      let resolved: ResolvedProjectBuffers;
+      try {
+        resolved = await this.resolveProjectBuffers(
+          copy,
+          (progress) => this.loadProgress.set(progress),
+          this.backgroundWork.signal,
+          pickTrackLoadConcurrency(tracksWithKey.length, TRACK_LOAD_CONCURRENCY),
+        );
+      } catch (error) {
+        if (isBackgroundWorkAborted(error)) {
+          fail('Carga cancelada');
+          return;
+        }
+        fail(error instanceof Error ? error.message : String(error));
+        return;
       }
-      this.engine.applyStemLinearGain(t.id, t.volume);
-      this.engine.applyStemPan(t.id, t.pan);
-      this.engine.applyStemMute(t.id, t.muted);
+      const { buffers, issues } = resolved;
+      this.loadProgress.set(null);
+
+      if (buffers.size === 0) {
+        const detail = issues.length ? ` Detalle: ${issues.join('; ')}` : '';
+        const allBlobMissing =
+          tracksWithKey.length > 0 &&
+          issues.length === tracksWithKey.length &&
+          issues.every((msg) => msg.includes('no encontrado'));
+        if (allBlobMissing) {
+          fail(
+            `No se encontraron los archivos de audio en el almacén local del navegador. Puede que se hayan borrado los datos del sitio o el pack esté corrupto.${detail}`,
+          );
+        } else {
+          fail(`No se pudo preparar ninguna pista para reproducir.${detail}`);
+        }
+        return;
+      }
+
+      if (estimateAudioBuffersRamBytes(buffers) <= this.sessionCache.budget) {
+        this.sessionCache.set(project.id, resolved.fingerprint, buffers);
+      }
+
+      try {
+        this.engine.mountDecodedStems(buffers);
+      } catch (e) {
+        fail(e instanceof Error ? e.message : String(e));
+        return;
+      }
+
+      this.loadedStemIds = new Set(buffers.keys());
+      this.loadedProjectId = project.id;
+
+      for (const t of copy.tracks) {
+        if (!buffers.has(t.id)) {
+          continue;
+        }
+        this.engine.applyStemLinearGain(t.id, t.volume);
+        this.engine.applyStemPan(t.id, t.pan);
+        this.engine.applyStemMute(t.id, t.muted);
+      }
+      this.applySoloToEngine();
+
+      const durationMs = this.engine.getMaxDurationMs();
+      const hasSoloTracks = copy.tracks.some((t) => t.solo);
+      const masterVolume = Math.min(Math.max(0, copy.masterVolume ?? 1), 1);
+      copy.masterVolume = masterVolume;
+
+      this.engine.applyMasterLinearGain(masterVolume);
+      this.project = copy;
+      this.syncLoadedProjectView();
+
+      const allTracksWithAudioLoaded = tracksWithKey.every((t) => buffers.has(t.id));
+
+      const canPlayInLiveMode = allTracksWithAudioLoaded;
+
+      this.state.set({
+        ...createInitialPlayerState(),
+        projectId: project.id,
+        status: 'ready',
+        currentTimeMs: 0,
+        durationMs,
+        masterVolume,
+        hasSoloTracks,
+        canPlay: this.liveMode() ? canPlayInLiveMode : this.loadedStemIds.size > 0,
+        errorMessage: null,
+        audioSuspended: this.engine.needsUserResume(),
+      });
+
+      const summaryParts: string[] = [];
+      const missingKey = copy.tracks.filter((t) => !t.storedAssetKey);
+      if (missingKey.length > 0) {
+        summaryParts.push(
+          `${missingKey.length} pista(s) sin archivo guardado. Importa de nuevo desde Packs si falta audio.`,
+        );
+      }
+      if (issues.length > 0 && buffers.size < tracksWithKey.length) {
+        summaryParts.push(
+          'Algunas pistas no se pudieron cargar. Reimporta o revisa el almacén local del navegador.',
+        );
+      }
+      this.loadSummary.set(summaryParts.length > 0 ? summaryParts.join(' ') : null);
+      this.syncAudioSuspendedState();
+    } finally {
+      trackHandle.release();
     }
-    this.applySoloToEngine();
-
-    const durationMs = this.engine.getMaxDurationMs();
-    const hasSoloTracks = copy.tracks.some((t) => t.solo);
-    const masterVolume = Math.min(Math.max(0, copy.masterVolume ?? 1), 1);
-    copy.masterVolume = masterVolume;
-
-    this.engine.applyMasterLinearGain(masterVolume);
-    this.project = copy;
-    this.syncLoadedProjectView();
-
-    const allTracksWithAudioLoaded = tracksWithKey.every((t) => buffers.has(t.id));
-
-    const canPlayInLiveMode = allTracksWithAudioLoaded;
-
-    this.state.set({
-      ...createInitialPlayerState(),
-      projectId: project.id,
-      status: 'ready',
-      currentTimeMs: 0,
-      durationMs,
-      masterVolume,
-      hasSoloTracks,
-      canPlay: this.liveMode() ? canPlayInLiveMode : this.loadedStemIds.size > 0,
-      errorMessage: null,
-      audioSuspended: this.engine.needsUserResume(),
-    });
-
-    const summaryParts: string[] = [];
-    const missingKey = copy.tracks.filter((t) => !t.storedAssetKey);
-    if (missingKey.length > 0) {
-      summaryParts.push(
-        `${missingKey.length} pista(s) sin archivo guardado. Importa de nuevo desde Packs si falta audio.`,
-      );
-    }
-    if (issues.length > 0 && buffers.size < tracksWithKey.length) {
-      summaryParts.push(
-        'Algunas pistas no se pudieron cargar. Reimporta o revisa el almacén local del navegador.',
-      );
-    }
-    this.loadSummary.set(summaryParts.length > 0 ? summaryParts.join(' ') : null);
-    this.syncAudioSuspendedState();
   }
 
   /** Precarga buffers en caché de sesión sin montar el motor (p. ej. siguiente pack del setlist). */
-  async warmProjectInCache(project: Readonly<Project>): Promise<'ready' | 'partial' | 'failed'> {
+  async warmProjectInCache(
+    project: Readonly<Project>,
+    signal: AbortSignal = this.backgroundWork.signal,
+  ): Promise<'ready' | 'partial' | 'failed'> {
     const copy = this.prepareProjectCopy(project);
     const fingerprint = buildAssetKeysFingerprint(copy.tracks);
     const cached = this.sessionCache.get(project.id, fingerprint);
     if (cached && this.isBufferMapComplete(copy, cached)) {
       return 'ready';
+    }
+
+    if (signal.aborted) {
+      return 'failed';
     }
 
     try {
@@ -240,12 +287,23 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       return 'failed';
     }
 
-    const resolved = await this.resolveProjectBuffers(copy);
-    if (resolved.buffers.size === 0) {
+    let resolved: ResolvedProjectBuffers;
+    try {
+      resolved = await this.resolveProjectBuffers(copy, undefined, signal, TRACK_WARM_CONCURRENCY);
+    } catch (error) {
+      if (isBackgroundWorkAborted(error)) {
+        return 'failed';
+      }
+      throw error;
+    }
+
+    if (signal.aborted || resolved.buffers.size === 0) {
       return 'failed';
     }
 
-    this.sessionCache.set(project.id, resolved.fingerprint, resolved.buffers);
+    if (!this.sessionCache.set(project.id, resolved.fingerprint, resolved.buffers)) {
+      return 'failed';
+    }
 
     const tracksWithKey = copy.tracks.filter((t) => !!t.storedAssetKey);
     if (
@@ -262,6 +320,14 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     const fingerprint = buildAssetKeysFingerprint(copy.tracks);
     const cached = this.sessionCache.get(project.id, fingerprint);
     return !!cached && this.isBufferMapComplete(copy, cached);
+  }
+
+  /** Hay audio decodificado en caché de sesión (completo o parcial). */
+  isProjectCached(project: Readonly<Project>): boolean {
+    const copy = this.prepareProjectCopy(project);
+    const fingerprint = buildAssetKeysFingerprint(copy.tracks);
+    const cached = this.sessionCache.get(project.id, fingerprint);
+    return !!cached && cached.size > 0;
   }
 
   toggleLiveMode(): void {
@@ -507,7 +573,15 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
   private async resolveProjectBuffers(
     copy: Project,
     onProgress?: (progress: LoadProgress) => void,
+    signal: AbortSignal = this.backgroundWork.signal,
+    concurrency = TRACK_LOAD_CONCURRENCY,
   ): Promise<ResolvedProjectBuffers> {
+    const throwIfAborted = (): void => {
+      if (signal.aborted) {
+        throw new BackgroundWorkAbortedError();
+      }
+    };
+
     const fingerprint = buildAssetKeysFingerprint(copy.tracks);
     const sessionBuffers = this.sessionCache.get(copy.id, fingerprint);
     const buffers = new Map<string, AudioBuffer>();
@@ -519,6 +593,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       onProgress?.({ loaded: 0, total, label: 'Recuperando audio en memoria…' });
       let loaded = 0;
       for (const track of toLoad) {
+        throwIfAborted();
         const buf = sessionBuffers.get(track.id);
         if (buf) {
           buffers.set(track.id, buf);
@@ -537,9 +612,10 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       let completed = 0;
       const results = await mapWithConcurrency(
         missingFromSession,
-        TRACK_LOAD_CONCURRENCY,
+        concurrency,
         async (track) => {
-          const result = await this.loadTrackBuffer(track);
+          throwIfAborted();
+          const result = await this.loadTrackBuffer(track, signal);
           completed += 1;
           onProgress?.({
             loaded: sessionLoaded + completed,
@@ -566,10 +642,20 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     return { buffers, issues, fingerprint, copy };
   }
 
-  private async loadTrackBuffer(track: StemTrack): Promise<LoadTrackResult> {
+  private async loadTrackBuffer(
+    track: StemTrack,
+    signal: AbortSignal = this.backgroundWork.signal,
+  ): Promise<LoadTrackResult> {
     const key = track.storedAssetKey!;
 
+    const throwIfAborted = (): void => {
+      if (signal.aborted) {
+        throw new BackgroundWorkAbortedError();
+      }
+    };
+
     try {
+      throwIfAborted();
       let pcm = await this.storage.getDecodedCacheIfValid(key);
 
       if (!pcm) {
@@ -589,6 +675,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
           };
         }
 
+        throwIfAborted();
         let contentHash = await this.storage.getTrackAssetContentHash(key);
         if (!contentHash) {
           contentHash = await sha256HexFromBlob(blob);
@@ -597,13 +684,32 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
         pcm = await this.storage.getDecodedCache(key, contentHash);
         if (!pcm) {
           pcm = await this.decode.decodeBlobToPcm(blob);
+          throwIfAborted();
           await this.storage.saveDecodedCache(key, contentHash, pcm);
         }
       }
 
-      const buffer = this.decode.pcmToAudioBuffer(this.engine.getContext(), pcm);
-      return { ok: true, trackId: track.id, buffer, durationMs: pcm.durationMs };
-    } catch {
+      throwIfAborted();
+      let buffer: AudioBuffer;
+      try {
+        buffer = this.decode.pcmToAudioBuffer(this.engine.getContext(), pcm);
+      } catch (pcmError) {
+        releaseDecodedPcm(pcm);
+        if (pcmError instanceof DOMException && pcmError.name === 'NotSupportedError') {
+          return {
+            ok: false,
+            issue: `${track.displayName}: demasiado grande para la memoria disponible`,
+          };
+        }
+        throw pcmError;
+      }
+      const durationMs = pcm.durationMs;
+      releaseDecodedPcm(pcm);
+      return { ok: true, trackId: track.id, buffer, durationMs };
+    } catch (error) {
+      if (isBackgroundWorkAborted(error)) {
+        throw error;
+      }
       return { ok: false, issue: `${track.displayName}: decodificación fallida` };
     }
   }

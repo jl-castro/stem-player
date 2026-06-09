@@ -10,3 +10,8 @@ export interface DecodedPcm {
 export interface DecodeWorkerResult {
   pcm: DecodedPcm;
 }
+
+/** Suelta Float32Array del PCM tras crear el AudioBuffer (reduce pico de RAM). */
+export function releaseDecodedPcm(pcm: DecodedPcm): void {
+  pcm.channelData.length = 0;
+}

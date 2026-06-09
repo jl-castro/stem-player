@@ -83,15 +83,32 @@ describe('AudioSessionCacheService', () => {
     expect(cache.get('p2', 'fp-2')?.size).toBe(1);
   });
 
-  it('does not evict pinned packs when over budget', () => {
+  it('evicts pinned packs as last resort when the cache is full', () => {
     const huge = mockAudioBuffer(13_100_000);
     const small = mockAudioBuffer(100_000);
 
     cache.setPinnedProjectIds(['large-a']);
-    cache.set('large-a', 'fp-a', new Map([['t1', huge]]));
-    cache.set('small-b', 'fp-b', new Map([['t1', small]]));
+    expect(cache.set('large-a', 'fp-a', new Map([['t1', huge]]))).toBe(true);
+    expect(cache.set('small-b', 'fp-b', new Map([['t1', small]]))).toBe(true);
 
-    expect(cache.get('large-a', 'fp-a')?.size).toBe(1);
+    expect(cache.get('large-a', 'fp-a')).toBeNull();
     expect(cache.get('small-b', 'fp-b')?.size).toBe(1);
+  });
+
+  it('evictExcept keeps only listed packs', () => {
+    cache.set('p1', 'fp-1', new Map([['t1', mockAudioBuffer(100)]]));
+    cache.set('p2', 'fp-2', new Map([['t1', mockAudioBuffer(100)]]));
+    cache.set('p3', 'fp-3', new Map([['t1', mockAudioBuffer(100)]]));
+    cache.evictExcept(['p2']);
+    expect(cache.get('p1', 'fp-1')).toBeNull();
+    expect(cache.get('p2', 'fp-2')?.size).toBe(1);
+    expect(cache.get('p3', 'fp-3')).toBeNull();
+  });
+
+  it('canStore returns false when only pinned entries block eviction', () => {
+    const huge = mockAudioBuffer(13_100_000);
+    cache.setPinnedProjectIds(['large-a']);
+    cache.set('large-a', 'fp-a', new Map([['t1', huge]]));
+    expect(cache.canStore(100_000)).toBe(false);
   });
 });

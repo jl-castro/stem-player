@@ -40,7 +40,7 @@ export class AudioSessionCacheService {
     return entry.buffers;
   }
 
-  set(projectId: string, assetKeysFingerprint: string, buffers: Map<string, AudioBuffer>): void {
+  set(projectId: string, assetKeysFingerprint: string, buffers: Map<string, AudioBuffer>): boolean {
     const estimatedBytes = estimateAudioBuffersRamBytes(buffers);
     this.removeEntry(projectId);
 
@@ -51,8 +51,15 @@ export class AudioSessionCacheService {
       const sizeBefore = this.entries.size;
       this.evictOldest();
       if (this.entries.size === sizeBefore) {
+        this.evictOldestIncludingPinned();
+      }
+      if (this.entries.size === sizeBefore) {
         break;
       }
+    }
+
+    if (this.cachedBytes + estimatedBytes > this.budgetBytes) {
+      return false;
     }
 
     this.entries.set(projectId, {
@@ -62,6 +69,37 @@ export class AudioSessionCacheService {
       estimatedBytes,
     });
     this.cachedBytes += estimatedBytes;
+    return true;
+  }
+
+  /** Indica si cabe `additionalBytes` tras expulsar entradas no fijadas. */
+  canStore(additionalBytes: number): boolean {
+    if (additionalBytes <= 0) {
+      return true;
+    }
+    if (this.cachedBytes + additionalBytes <= this.budgetBytes) {
+      return true;
+    }
+
+    let reclaimable = 0;
+    for (const projectId of this.entries.keys()) {
+      if (this.pinnedProjectIds.has(projectId)) {
+        continue;
+      }
+      reclaimable += this.entries.get(projectId)!.estimatedBytes;
+      if (this.cachedBytes - reclaimable + additionalBytes <= this.budgetBytes) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  get usedBytes(): number {
+    return this.cachedBytes;
+  }
+
+  get budget(): number {
+    return this.budgetBytes;
   }
 
   clear(): void {
@@ -71,6 +109,16 @@ export class AudioSessionCacheService {
 
   clearIfProject(projectId: string): void {
     this.removeEntry(projectId);
+  }
+
+  /** Expulsa todos los packs salvo los indicados (p. ej. solo el actual al precargar el siguiente). */
+  evictExcept(keepProjectIds: readonly string[]): void {
+    const keep = new Set(keepProjectIds);
+    for (const projectId of [...this.entries.keys()]) {
+      if (!keep.has(projectId)) {
+        this.removeEntry(projectId);
+      }
+    }
   }
 
   /** Fija packs de un setlist para que Precargar no expulse el primero al cargar el segundo. */
@@ -107,6 +155,13 @@ export class AudioSessionCacheService {
       }
       this.removeEntry(projectId);
       return;
+    }
+  }
+
+  private evictOldestIncludingPinned(): void {
+    const oldest = this.entries.keys().next().value;
+    if (oldest) {
+      this.removeEntry(oldest);
     }
   }
 }

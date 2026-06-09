@@ -25,6 +25,11 @@
   flex: 1 1 auto;
 }
 
+.library-page__tag--memory {
+  color: var(--sp-accent);
+  font-weight: 600;
+}
+
 .icon-link {
   display: inline-flex;
   align-items: center;

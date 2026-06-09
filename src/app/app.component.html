@@ -1,4 +1,18 @@
 <a class="skip-link" href="#main-content">Saltar al contenido</a>
 <div class="app-shell">
+  @if (backgroundWork.isActive()) {
+    <div class="background-work-bar" role="status" aria-live="polite">
+      <span class="background-work-bar__pulse" aria-hidden="true"></span>
+      <span class="background-work-bar__label">{{ backgroundWork.statusLine() }}</span>
+      <button
+        type="button"
+        class="btn btn--icon btn--icon-only btn--ghost background-work-bar__stop"
+        aria-label="Detener procesos en segundo plano"
+        (click)="cancelBackgroundWork()"
+      >
+        <svg lucideX [size]="18" aria-hidden="true"></svg>
+      </button>
+    </div>
+  }
   <router-outlet />
 </div>

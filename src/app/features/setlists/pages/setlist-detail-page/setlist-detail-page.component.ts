@@ -25,7 +25,6 @@ import {
   LucidePlay,
   LucideTrash2,
 } from '../../../../shared/icons/app-lucide-icons';
-import type { PackPreloadStatus } from '../../services/setlist-preload.service';
 import { SetlistPreloadService } from '../../services/setlist-preload.service';
 import { SetlistStorageService } from '../../services/setlist-storage.service';
 import { ProjectStorageService } from '../../../projects/services/project-storage.service';
@@ -60,13 +59,10 @@ export class SetlistDetailPageComponent {
   readonly pageError = signal<string | null>(null);
   readonly editorError = signal<string | null>(null);
   readonly editorBusy = signal(false);
-  readonly preloading = signal(false);
   readonly addPackId = signal('');
   readonly packPickerOpen = signal(false);
 
   @ViewChild('packPicker') private packPickerRef?: ElementRef<HTMLElement>;
-
-  readonly setlistPreloadProgress = this.setlistPreload.setlistPreloadProgress;
 
   constructor() {
     this.route.paramMap
@@ -96,11 +92,9 @@ export class SetlistDetailPageComponent {
                 this.pageError.set('Setlist no encontrado.');
                 this.setlist.set(null);
               } else {
+                this.setlistPreload.switchToSetlistContext(setlist.id);
                 this.setlist.set(setlist);
                 this.projects.set(projectList);
-                for (const entry of setlist.entries) {
-                  this.setlistPreload.refreshStatusForPack(entry.packId);
-                }
               }
               this.pageLoading.set(false);
             }),
@@ -112,7 +106,7 @@ export class SetlistDetailPageComponent {
   }
 
   pageBusy(): boolean {
-    return this.pageLoading() || this.editorBusy() || this.preloading();
+    return this.pageLoading() || this.editorBusy();
   }
 
   sortedEntries(setlist: Setlist) {
@@ -121,16 +115,6 @@ export class SetlistDetailPageComponent {
 
   packName(packId: string): string {
     return this.projects().find((p) => p.id === packId)?.name ?? 'Pack eliminado';
-  }
-
-  preloadStatusLabel(packId: string): string {
-    const map: Record<PackPreloadStatus, string> = {
-      pending: 'Pendiente',
-      loading: 'Precargando…',
-      ready: 'Listo',
-      error: 'Error',
-    };
-    return map[this.setlistPreload.getStatus(packId)];
   }
 
   packsAvailableToAdd(setlist: Setlist): Project[] {
@@ -197,10 +181,10 @@ export class SetlistDetailPageComponent {
         order: entries.length,
       });
       const updated = await this.setlistStorage.saveSetlistEntries(setlistId, entries);
+      this.setlistPreload.invalidateSetlistCacheIfActive(setlistId);
       this.setlist.set(updated);
       this.addPackId.set('');
       this.packPickerOpen.set(false);
-      this.setlistPreload.refreshStatusForPack(packId);
     } catch (e) {
       this.editorError.set(e instanceof Error ? e.message : String(e));
     } finally {
@@ -224,6 +208,7 @@ export class SetlistDetailPageComponent {
         e.order = i;
       });
       const updated = await this.setlistStorage.saveSetlistEntries(setlistId, entries);
+      this.setlistPreload.invalidateSetlistCacheIfActive(setlistId);
       this.setlist.set(updated);
     } catch (e) {
       this.editorError.set(e instanceof Error ? e.message : String(e));
@@ -246,30 +231,12 @@ export class SetlistDetailPageComponent {
     this.editorError.set(null);
     try {
       const updated = await this.setlistStorage.saveSetlistEntries(setlistId, entries);
+      this.setlistPreload.invalidateSetlistCacheIfActive(setlistId);
       this.setlist.set(updated);
     } catch (e) {
       this.editorError.set(e instanceof Error ? e.message : String(e));
     } finally {
       this.editorBusy.set(false);
-    }
-  }
-
-  async onPreload(): Promise<void> {
-    const current = this.setlist();
-    if (!current || this.pageBusy() || current.entries.length === 0) {
-      return;
-    }
-    this.preloading.set(true);
-    try {
-      const result = await this.setlistPreload.warmSetlist(current);
-      this.setlistPreload.setlistPreloadProgress.set({
-        loaded: result.readyCount,
-        total: result.total,
-        label: this.setlistPreload.preloadCompleteMessage(result),
-      });
-      window.setTimeout(() => this.setlistPreload.clearSetlistPreloadProgress(), 4000);
-    } finally {
-      this.preloading.set(false);
     }
   }
 
@@ -283,6 +250,7 @@ export class SetlistDetailPageComponent {
     if (!first) {
       return;
     }
+    this.setlistPreload.switchToSetlistContext(current.id);
     void this.router.navigate(['/player', first.packId], {
       queryParams: { setlist: current.id, entry: 0 },
     });

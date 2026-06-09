@@ -45,6 +45,14 @@ export class AudioDecodeService {
     });
   }
 
+  /** Rechaza decodificaciones pendientes (p. ej. al detener procesos en segundo plano). */
+  cancelAllPending(): void {
+    for (const [id, pending] of this.pending) {
+      this.pending.delete(id);
+      pending.reject(new Error('Cancelado'));
+    }
+  }
+
   pcmToAudioBuffer(ctx: BaseAudioContext, pcm: DecodedPcm): AudioBuffer {
     const buffer = ctx.createBuffer(pcm.numberOfChannels, pcm.length, pcm.sampleRate);
     for (let ch = 0; ch < pcm.numberOfChannels; ch += 1) {

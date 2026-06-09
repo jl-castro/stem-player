@@ -147,6 +147,11 @@
   color: var(--sp-text-muted);
 }
 
+.setlist-meta--memory {
+  color: var(--sp-accent);
+  font-weight: 600;
+}
+
 .setlist-actions {
   display: flex;
   flex-wrap: wrap;

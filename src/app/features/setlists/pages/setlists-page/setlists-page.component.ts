@@ -52,9 +52,6 @@ export class SetlistsPageComponent {
   readonly renameDraft = signal('');
   readonly renameError = signal<string | null>(null);
 
-  readonly preloadingId = signal<string | null>(null);
-  readonly setlistPreloadProgress = this.setlistPreload.setlistPreloadProgress;
-
   constructor() {
     void this.refreshSetlists();
   }
@@ -65,11 +62,6 @@ export class SetlistsPageComponent {
     try {
       const list = await this.setlistStorage.listSetlists();
       this.setlists.set(list);
-      for (const setlist of list) {
-        for (const entry of setlist.entries) {
-          this.setlistPreload.refreshStatusForPack(entry.packId);
-        }
-      }
     } catch (e) {
       this.listError.set(e instanceof Error ? e.message : String(e));
     } finally {
@@ -78,7 +70,7 @@ export class SetlistsPageComponent {
   }
 
   pageBusy(): boolean {
-    return this.isCreating() || this.preloadingId() !== null;
+    return this.isCreating();
   }
 
   setlistEntryCount(setlist: Setlist): number {
@@ -109,43 +101,22 @@ export class SetlistsPageComponent {
     }
   }
 
-  async onPreloadSetlist(setlist: Setlist): Promise<void> {
-    if (this.pageBusy() || setlist.entries.length === 0) {
-      return;
-    }
-    this.preloadingId.set(setlist.id);
-    try {
-      const result = await this.setlistPreload.warmSetlist(setlist);
-      await this.refreshSetlists();
-      this.setlistPreload.setlistPreloadProgress.set({
-        loaded: result.readyCount,
-        total: result.total,
-        label: this.setlistPreload.preloadCompleteMessage(result),
-      });
-      window.setTimeout(() => this.setlistPreload.clearSetlistPreloadProgress(), 4000);
-    } finally {
-      this.preloadingId.set(null);
-    }
-  }
-
   onPlaySetlist(setlist: Setlist): void {
     const entries = sortSetlistEntriesByOrder(setlist.entries);
     const first = entries[0];
     if (!first) {
       return;
     }
+    this.setlistPreload.switchToSetlistContext(setlist.id);
     void this.router.navigate(['/player', first.packId], {
       queryParams: { setlist: setlist.id, entry: 0 },
     });
   }
 
   startRename(setlist: Setlist): void {
-    if (this.pageBusy()) {
-      return;
-    }
-    this.renameError.set(null);
     this.renameId.set(setlist.id);
     this.renameDraft.set(setlist.name);
+    this.renameError.set(null);
   }
 
   cancelRename(): void {
@@ -186,6 +157,7 @@ export class SetlistsPageComponent {
       return;
     }
     try {
+      this.setlistPreload.invalidateSetlistCacheIfActive(setlist.id);
       await this.setlistStorage.deleteSetlist(setlist.id);
       if (this.renameId() === setlist.id) {
         this.cancelRename();

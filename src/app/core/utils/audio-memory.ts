@@ -59,6 +59,20 @@ export function getSessionCacheBudgetBytes(): number {
 }
 
 /** Estima bytes de `AudioBuffer` decodificados (float32 por canal). */
+/** Menos paralelismo en packs con muchas pistas para no duplicar PCM + AudioBuffer en RAM. */
+export function pickTrackLoadConcurrency(trackCount: number, maxDefault = 4): number {
+  if (trackCount > 16) {
+    return 1;
+  }
+  if (trackCount > 8) {
+    return 2;
+  }
+  if (trackCount > 4) {
+    return 3;
+  }
+  return maxDefault;
+}
+
 export function estimateAudioBuffersRamBytes(buffers: ReadonlyMap<string, AudioBuffer>): number {
   let total = 0;
   for (const buffer of buffers.values()) {
