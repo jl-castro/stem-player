@@ -1,11 +1,14 @@
 import {
   LucideArrowLeft,
   LucideCheck,
+  LucideChevronLeft,
+  LucideChevronRight,
   LucideGripVertical,
   LucideList,
   LucidePause,
   LucidePencil,
   LucidePlay,
+  LucidePlus,
   LucideRotateCcw,
   LucideSquare,
   LucideTrash2,
@@ -18,6 +21,8 @@ import {
 /** Icons used across the app (tree-shaken per import site when used as components). */
 export const APP_LUCIDE_ICONS = [
   LucideArrowLeft,
+  LucideChevronLeft,
+  LucideChevronRight,
   LucidePlay,
   LucidePause,
   LucideSquare,
@@ -30,6 +35,7 @@ export const APP_LUCIDE_ICONS = [
   LucideUpload,
   LucideCheck,
   LucideX,
+  LucidePlus,
 ] as const;
 
 export function provideAppLucideIcons() {
@@ -39,11 +45,14 @@ export function provideAppLucideIcons() {
 export {
   LucideArrowLeft,
   LucideCheck,
+  LucideChevronLeft,
+  LucideChevronRight,
   LucideGripVertical,
   LucideList,
   LucidePause,
   LucidePencil,
   LucidePlay,
+  LucidePlus,
   LucideRotateCcw,
   LucideSquare,
   LucideTrash2,

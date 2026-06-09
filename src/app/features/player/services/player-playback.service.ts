@@ -39,6 +39,13 @@ export interface LoadProgress {
   label: string;
 }
 
+interface ResolvedProjectBuffers {
+  buffers: Map<string, AudioBuffer>;
+  issues: string[];
+  fingerprint: string;
+  copy: Project;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PlayerPlaybackService implements PlayerPlaybackPort {
   private readonly engine = inject(AudioEngineService);
@@ -80,16 +87,8 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     this.reorderSaving.set(false);
     this.reorderError.set(null);
 
-    const copy = cloneProject(project);
-    copy.tracks = sortTracksByOrder(copy.tracks);
-    copy.masterVolume = copy.masterVolume ?? 1;
-    for (const t of copy.tracks) {
-      t.pan = t.pan ?? 'center';
-    }
-
-    const fingerprint = buildAssetKeysFingerprint(copy.tracks);
+    const copy = this.prepareProjectCopy(project);
     const sameProject = this.loadedProjectId === project.id;
-    const sessionBuffers = this.sessionCache.get(project.id, fingerprint);
 
     if (!sameProject) {
       this.loadedProjectId = null;
@@ -135,59 +134,10 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       return;
     }
 
-    const buffers = new Map<string, AudioBuffer>();
-    const issues: string[] = [];
-    const toLoad = copy.tracks.filter((t) => t.storedAssetKey);
-    const total = toLoad.length;
-    let loaded = 0;
-
-    if (sessionBuffers && sessionBuffers.size > 0) {
-      this.loadProgress.set({ loaded: 0, total, label: 'Recuperando audio en memoria…' });
-      for (const track of toLoad) {
-        const buf = sessionBuffers.get(track.id);
-        if (buf) {
-          buffers.set(track.id, buf);
-          track.durationMs = Math.round(buf.duration * 1000);
-        }
-        loaded += 1;
-        this.loadProgress.set({ loaded, total, label: 'Recuperando audio en memoria…' });
-      }
-    }
-
-    const missingFromSession = toLoad.filter((t) => !buffers.has(t.id));
-    if (missingFromSession.length > 0) {
-      const sessionLoaded = buffers.size;
-      this.loadProgress.set({ loaded: sessionLoaded, total, label: 'Cargando pistas…' });
-
-      let completed = 0;
-      const results = await mapWithConcurrency(
-        missingFromSession,
-        TRACK_LOAD_CONCURRENCY,
-        async (track) => {
-          const result = await this.loadTrackBuffer(track);
-          completed += 1;
-          this.loadProgress.set({
-            loaded: sessionLoaded + completed,
-            total,
-            label: 'Cargando pistas…',
-          });
-          return result;
-        },
-      );
-
-      for (const result of results) {
-        if (!result.ok) {
-          issues.push(result.issue);
-          continue;
-        }
-        buffers.set(result.trackId, result.buffer);
-        const trackMeta = copy.tracks.find((t) => t.id === result.trackId);
-        if (trackMeta) {
-          trackMeta.durationMs = result.durationMs;
-        }
-      }
-    }
-
+    const resolved = await this.resolveProjectBuffers(copy, (progress) =>
+      this.loadProgress.set(progress),
+    );
+    const { buffers, issues } = resolved;
     this.loadProgress.set(null);
 
     if (buffers.size === 0) {
@@ -206,7 +156,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
       return;
     }
 
-    this.sessionCache.set(project.id, fingerprint, buffers);
+    this.sessionCache.set(project.id, resolved.fingerprint, buffers);
 
     try {
       this.engine.mountDecodedStems(buffers);
@@ -268,6 +218,45 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     }
     this.loadSummary.set(summaryParts.length > 0 ? summaryParts.join(' ') : null);
     this.syncAudioSuspendedState();
+  }
+
+  /** Precarga buffers en caché de sesión sin montar el motor (p. ej. siguiente pack del setlist). */
+  async warmProjectInCache(project: Readonly<Project>): Promise<'ready' | 'partial' | 'failed'> {
+    const copy = this.prepareProjectCopy(project);
+    const fingerprint = buildAssetKeysFingerprint(copy.tracks);
+    const cached = this.sessionCache.get(project.id, fingerprint);
+    if (cached && this.isBufferMapComplete(copy, cached)) {
+      return 'ready';
+    }
+
+    try {
+      await this.engine.ensureAudioContext();
+    } catch {
+      return 'failed';
+    }
+
+    const resolved = await this.resolveProjectBuffers(copy);
+    if (resolved.buffers.size === 0) {
+      return 'failed';
+    }
+
+    this.sessionCache.set(project.id, resolved.fingerprint, resolved.buffers);
+
+    const tracksWithKey = copy.tracks.filter((t) => !!t.storedAssetKey);
+    if (
+      resolved.issues.length > 0 ||
+      resolved.buffers.size < tracksWithKey.length
+    ) {
+      return 'partial';
+    }
+    return 'ready';
+  }
+
+  isProjectWarm(project: Readonly<Project>): boolean {
+    const copy = this.prepareProjectCopy(project);
+    const fingerprint = buildAssetKeysFingerprint(copy.tracks);
+    const cached = this.sessionCache.get(project.id, fingerprint);
+    return !!cached && this.isBufferMapComplete(copy, cached);
   }
 
   toggleLiveMode(): void {
@@ -493,6 +482,83 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     this.stopRafLoop();
     this.engine.haltPlayback();
     this.engine.unmountStems();
+  }
+
+  private prepareProjectCopy(project: Readonly<Project>): Project {
+    const copy = cloneProject(project);
+    copy.tracks = sortTracksByOrder(copy.tracks);
+    copy.masterVolume = copy.masterVolume ?? 1;
+    for (const t of copy.tracks) {
+      t.pan = t.pan ?? 'center';
+    }
+    return copy;
+  }
+
+  private isBufferMapComplete(project: Project, buffers: ReadonlyMap<string, AudioBuffer>): boolean {
+    const tracksWithKey = project.tracks.filter((t) => !!t.storedAssetKey);
+    return tracksWithKey.length > 0 && tracksWithKey.every((t) => buffers.has(t.id));
+  }
+
+  private async resolveProjectBuffers(
+    copy: Project,
+    onProgress?: (progress: LoadProgress) => void,
+  ): Promise<ResolvedProjectBuffers> {
+    const fingerprint = buildAssetKeysFingerprint(copy.tracks);
+    const sessionBuffers = this.sessionCache.get(copy.id, fingerprint);
+    const buffers = new Map<string, AudioBuffer>();
+    const issues: string[] = [];
+    const toLoad = copy.tracks.filter((t) => t.storedAssetKey);
+    const total = toLoad.length;
+
+    if (sessionBuffers && sessionBuffers.size > 0) {
+      onProgress?.({ loaded: 0, total, label: 'Recuperando audio en memoria…' });
+      let loaded = 0;
+      for (const track of toLoad) {
+        const buf = sessionBuffers.get(track.id);
+        if (buf) {
+          buffers.set(track.id, buf);
+          track.durationMs = Math.round(buf.duration * 1000);
+        }
+        loaded += 1;
+        onProgress?.({ loaded, total, label: 'Recuperando audio en memoria…' });
+      }
+    }
+
+    const missingFromSession = toLoad.filter((t) => !buffers.has(t.id));
+    if (missingFromSession.length > 0) {
+      const sessionLoaded = buffers.size;
+      onProgress?.({ loaded: sessionLoaded, total, label: 'Cargando pistas…' });
+
+      let completed = 0;
+      const results = await mapWithConcurrency(
+        missingFromSession,
+        TRACK_LOAD_CONCURRENCY,
+        async (track) => {
+          const result = await this.loadTrackBuffer(track);
+          completed += 1;
+          onProgress?.({
+            loaded: sessionLoaded + completed,
+            total,
+            label: 'Cargando pistas…',
+          });
+          return result;
+        },
+      );
+
+      for (const result of results) {
+        if (!result.ok) {
+          issues.push(result.issue);
+          continue;
+        }
+        buffers.set(result.trackId, result.buffer);
+        const trackMeta = copy.tracks.find((t) => t.id === result.trackId);
+        if (trackMeta) {
+          trackMeta.durationMs = result.durationMs;
+        }
+      }
+    }
+
+    return { buffers, issues, fingerprint, copy };
   }
 
   private async loadTrackBuffer(track: StemTrack): Promise<LoadTrackResult> {

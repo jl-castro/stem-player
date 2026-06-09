@@ -755,6 +755,29 @@
   gap: var(--sp-space-md);
 }
 
+.transport-row--setlist {
+  justify-content: center;
+  width: 100%;
+  gap: var(--sp-space-sm);
+}
+
+.setlist-context,
+.setlist-nav-label {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--sp-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14rem;
+}
+
+.setlist-nav-label {
+  flex: 1;
+  text-align: center;
+  max-width: none;
+}
+
 .live-toggle {
   display: inline-flex;
   align-items: center;

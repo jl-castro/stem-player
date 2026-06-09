@@ -13,6 +13,9 @@
         }
       </div>
       <div class="player-meta-row">
+        @if (hasSetlistNav() && setlistPositionLabel()) {
+          <p class="setlist-context">{{ setlistPositionLabel() }}</p>
+        }
         <p class="status-line" [attr.data-status]="combinedStatus()" aria-live="polite">
           <span class="status-badge">{{ statusLabel() }}</span>
           @if (wakeLock.active()) {
@@ -46,6 +49,9 @@
     </div>
     @if (!pageLoading() && hasInactiveStems()) {
       <p class="hint">Las pistas «Sin audio» no tienen archivo en este dispositivo.</p>
+    }
+    @if (hasSetlistNav() && !pageLoading() && hasNextPack() && playback.liveMode() && !nextPackReady()) {
+      <p class="hint">Precargando el siguiente pack del setlist…</p>
     }
   </header>
 
@@ -305,6 +311,29 @@
     </div>
 
     <div class="transport-controls">
+      @if (hasSetlistNav()) {
+        <div class="transport-row transport-row--setlist">
+          <button
+            type="button"
+            class="btn btn--icon btn--icon-only btn--ghost"
+            [disabled]="previousPackDisabled()"
+            aria-label="Pack anterior del setlist"
+            (click)="goToPreviousPack()"
+          >
+            <svg lucideChevronLeft [size]="22"></svg>
+          </button>
+          <span class="setlist-nav-label">{{ setlistPositionLabel() }}</span>
+          <button
+            type="button"
+            class="btn btn--icon btn--icon-only btn--ghost"
+            [disabled]="nextPackDisabled()"
+            [attr.aria-label]="nextPackReady() ? 'Siguiente pack del setlist' : 'Siguiente pack (precargando)'"
+            (click)="goToNextPack()"
+          >
+            <svg lucideChevronRight [size]="22"></svg>
+          </button>
+        </div>
+      }
       <div class="transport-row transport-row--primary">
         <button
           type="button"

@@ -236,5 +236,196 @@
         }
       </ul>
     </section>
+
+    <section class="setlists-section list-section" aria-label="Setlists">
+      <div class="section-head">
+        <h2 class="section-title">Setlists</h2>
+        <p class="section-sub">Repertorios ordenados para show o ensayo</p>
+      </div>
+
+      @if (setlistsError(); as sErr) {
+        <div class="banner banner--error banner--compact" role="alert">{{ sErr }}</div>
+      }
+
+      <div class="create-panel create-panel--compact" aria-label="Nuevo setlist">
+        <div class="create-row">
+          <input
+            type="text"
+            class="field-input"
+            placeholder="Nombre del setlist"
+            autocomplete="off"
+            [value]="newSetlistName()"
+            (input)="onNewSetlistNameInput($event)"
+            [disabled]="pageBusy()"
+          />
+          <button
+            type="button"
+            class="btn btn--primary btn--icon"
+            [disabled]="pageBusy() || !newSetlistName().trim()"
+            (click)="onCreateSetlist()"
+          >
+            <svg lucidePlus [size]="18" aria-hidden="true"></svg>
+            <span>Crear</span>
+          </button>
+        </div>
+        @if (setlistCreateError(); as scErr) {
+          <div class="banner banner--error banner--compact" role="alert">{{ scErr }}</div>
+        }
+      </div>
+
+      @if (setlistRenameError(); as srErr) {
+        <div class="banner banner--error banner--compact" role="alert">{{ srErr }}</div>
+      }
+      @if (setlistEditorError(); as seErr) {
+        <div class="banner banner--error banner--compact" role="alert">{{ seErr }}</div>
+      }
+
+      @if (setlistsLoading()) {
+        <p class="loading-hint loading-hint--pulse list-status" role="status">Cargando setlists…</p>
+      } @else if (setlists().length === 0) {
+        <p class="list-status list-status--empty" role="status">Sin setlists aún.</p>
+      }
+
+      @if (setlistPreloadProgress(); as pp) {
+        <p class="loading-hint loading-hint--pulse list-status" role="status">
+          {{ pp.label }} ({{ pp.loaded }}/{{ pp.total }})
+        </p>
+      }
+
+      <ul class="setlist-list">
+        @for (setlist of setlists(); track setlist.id) {
+          <li class="setlist-item">
+            @if (setlistRenameId() === setlist.id) {
+              <div class="rename-block">
+                <input
+                  type="text"
+                  class="field-input field-input--compact"
+                  [value]="setlistRenameDraft()"
+                  (input)="onSetlistRenameDraftInput($event)"
+                  (keydown.enter)="confirmSetlistRename(setlist.id)"
+                  [disabled]="pageBusy()"
+                />
+                <div class="rename-actions">
+                  <button type="button" class="btn btn--small btn--primary btn--icon btn--icon-only" (click)="confirmSetlistRename(setlist.id)">
+                    <svg lucideCheck [size]="18"></svg>
+                  </button>
+                  <button type="button" class="btn btn--small btn--ghost btn--icon btn--icon-only" (click)="cancelSetlistRename()">
+                    <svg lucideX [size]="18"></svg>
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="setlist-row">
+                <div class="setlist-info">
+                  <span class="setlist-name">{{ setlist.name }}</span>
+                  <span class="setlist-meta">{{ setlistEntryCount(setlist) }} pack(s)</span>
+                </div>
+                <div class="setlist-actions">
+                  <button
+                    type="button"
+                    class="btn btn--small btn--primary btn--icon"
+                    [disabled]="pageBusy() || setlist.entries.length === 0"
+                    (click)="onPlaySetlist(setlist)"
+                  >
+                    <svg lucidePlay [size]="16" aria-hidden="true"></svg>
+                    <span>Abrir</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--small btn--ghost"
+                    [disabled]="pageBusy() || setlist.entries.length === 0"
+                    [attr.aria-busy]="setlistPreloadingId() === setlist.id"
+                    (click)="onPreloadSetlist(setlist)"
+                  >
+                    {{ setlistPreloadingId() === setlist.id ? '…' : 'Precargar' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--small btn--icon btn--icon-only"
+                    [class.btn--active]="editingSetlistId() === setlist.id"
+                    [disabled]="pageBusy()"
+                    (click)="editingSetlistId() === setlist.id ? cancelEditSetlist() : startEditSetlist(setlist)"
+                  >
+                    <svg lucideList [size]="18"></svg>
+                  </button>
+                  <button type="button" class="btn btn--small btn--icon btn--icon-only" [disabled]="pageBusy()" (click)="startSetlistRename(setlist)">
+                    <svg lucidePencil [size]="18"></svg>
+                  </button>
+                  <button type="button" class="btn btn--small btn--danger btn--icon btn--icon-only" [disabled]="pageBusy()" (click)="onDeleteSetlist(setlist)">
+                    <svg lucideTrash2 [size]="18"></svg>
+                  </button>
+                </div>
+              </div>
+            }
+
+            @if (editingSetlistId() === setlist.id) {
+              <div class="setlist-editor" [attr.aria-busy]="setlistEditorBusy()">
+                <ul
+                  class="setlist-entries"
+                  cdkDropList
+                  (cdkDropListDropped)="onSetlistEntryDrop(setlist.id, $event)"
+                >
+                  @for (entry of setlist.entries; track entry.id; let i = $index) {
+                    <li class="setlist-entry" cdkDrag [cdkDragDisabled]="setlistEditorBusy()">
+                      <span class="setlist-entry__handle" cdkDragHandle aria-hidden="true">
+                        <svg lucideGripVertical [size]="16"></svg>
+                      </span>
+                      <span class="setlist-entry__index">{{ i + 1 }}</span>
+                      <a
+                        class="setlist-entry__link"
+                        [routerLink]="['/player', entry.packId]"
+                        [queryParams]="{ setlist: setlist.id, entry: i }"
+                      >
+                        {{ packName(entry.packId) }}
+                      </a>
+                      <span
+                        class="setlist-entry__status"
+                        [attr.data-status]="setlistPreload.getStatus(entry.packId)"
+                      >
+                        {{ preloadStatusLabel(entry.packId) }}
+                      </span>
+                      <button
+                        type="button"
+                        class="btn btn--small btn--danger btn--icon btn--icon-only"
+                        [disabled]="setlistEditorBusy()"
+                        (click)="onRemoveSetlistEntry(setlist.id, entry.id)"
+                      >
+                        <svg lucideTrash2 [size]="14"></svg>
+                      </button>
+                    </li>
+                  } @empty {
+                    <li class="setlist-entry setlist-entry--empty">Añade packs al setlist.</li>
+                  }
+                </ul>
+
+                @if (packsAvailableToAdd(setlist).length > 0) {
+                  <div class="setlist-editor__add">
+                    <select
+                      class="field-input field-input--compact"
+                      [value]="addPackToSetlistId()"
+                      (change)="onAddPackSelect($event)"
+                      [disabled]="setlistEditorBusy()"
+                    >
+                      <option value="">Elegir pack…</option>
+                      @for (pack of packsAvailableToAdd(setlist); track pack.id) {
+                        <option [value]="pack.id">{{ pack.name }}</option>
+                      }
+                    </select>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--primary"
+                      [disabled]="setlistEditorBusy() || !addPackToSetlistId()"
+                      (click)="onAddPackToSetlist(setlist.id)"
+                    >
+                      Añadir
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    </section>
   </main>
 </div>

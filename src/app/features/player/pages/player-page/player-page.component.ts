@@ -13,15 +13,18 @@ import {
   ViewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { EMPTY, from } from 'rxjs';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { combineLatest, EMPTY, from } from 'rxjs';
 import { catchError, switchMap, tap } from 'rxjs/operators';
 
-import type { StemPanMode } from '../../../../core/models';
+import type { Setlist, StemPanMode } from '../../../../core/models';
+import { sortSetlistEntriesByOrder } from '../../../../core/utils/setlist-order.util';
 import { ScreenWakeLockService } from '../../../../core/services/screen-wake-lock.service';
 import { formatMsAsMmSs } from '../../../../core/utils/format-time';
 import {
   LucideArrowLeft,
+  LucideChevronLeft,
+  LucideChevronRight,
   LucideGripVertical,
   LucidePause,
   LucidePlay,
@@ -30,6 +33,8 @@ import {
   LucideVolume2,
 } from '../../../../shared/icons/app-lucide-icons';
 import { FormatMsPipe } from '../../../../shared/pipes/format-ms.pipe';
+import { SetlistPreloadService } from '../../../setlists/services/setlist-preload.service';
+import { SetlistStorageService } from '../../../setlists/services/setlist-storage.service';
 import { ProjectStorageService } from '../../../projects/services/project-storage.service';
 import { PlayerPlaybackService } from '../../services/player-playback.service';
 
@@ -42,6 +47,8 @@ import { PlayerPlaybackService } from '../../services/player-playback.service';
     FormatMsPipe,
     DragDropModule,
     LucideArrowLeft,
+    LucideChevronLeft,
+    LucideChevronRight,
     LucidePlay,
     LucidePause,
     LucideSquare,
@@ -56,10 +63,16 @@ import { PlayerPlaybackService } from '../../services/player-playback.service';
 export class PlayerPageComponent {
   readonly playback = inject(PlayerPlaybackService);
   readonly wakeLock = inject(ScreenWakeLockService);
+  readonly setlistPreload = inject(SetlistPreloadService);
   private readonly storage = inject(ProjectStorageService);
+  private readonly setlistStorage = inject(SetlistStorageService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   @ViewChild('mixerStrip') private mixerStripRef?: ElementRef<HTMLElement>;
+
+  readonly activeSetlist = signal<Setlist | null>(null);
+  readonly activeEntryIndex = signal(0);
 
   readonly pageLoading = signal(false);
   readonly pageError = signal<string | null>(null);
@@ -159,6 +172,53 @@ export class PlayerPageComponent {
     () => !this.pageLoading() && this.mixerScrollMax() > 0,
   );
 
+  readonly hasSetlistNav = computed(() => !!this.activeSetlist());
+
+  readonly setlistPositionLabel = computed(() => {
+    const setlist = this.activeSetlist();
+    if (!setlist || setlist.entries.length === 0) {
+      return '';
+    }
+    return `${this.activeEntryIndex() + 1}/${setlist.entries.length} · ${setlist.name}`;
+  });
+
+  readonly hasPreviousPack = computed(() => this.activeEntryIndex() > 0);
+
+  readonly hasNextPack = computed(() => {
+    const setlist = this.activeSetlist();
+    if (!setlist) {
+      return false;
+    }
+    return this.activeEntryIndex() < setlist.entries.length - 1;
+  });
+
+  readonly nextPackReady = computed(() => {
+    const setlist = this.activeSetlist();
+    if (!setlist) {
+      return true;
+    }
+    const entries = sortSetlistEntriesByOrder(setlist.entries);
+    const next = entries[this.activeEntryIndex() + 1];
+    if (!next) {
+      return true;
+    }
+    return this.setlistPreload.isReady(next.packId);
+  });
+
+  readonly nextPackDisabled = computed(() => {
+    if (!this.hasNextPack()) {
+      return true;
+    }
+    if (this.pageLoading()) {
+      return true;
+    }
+    return this.playback.liveMode() && !this.nextPackReady();
+  });
+
+  readonly previousPackDisabled = computed(
+    () => !this.hasPreviousPack() || this.pageLoading(),
+  );
+
   private readonly onWindowResize = (): void => {
     this.refreshMixerScrollMetrics();
   };
@@ -208,7 +268,16 @@ export class PlayerPageComponent {
       window.addEventListener('resize', this.onWindowResize, { passive: true });
     }
 
-    this.route.paramMap
+    effect(() => {
+      const setlist = this.activeSetlist();
+      const index = this.activeEntryIndex();
+      const status = this.playback.state().status;
+      if (setlist && (status === 'playing' || status === 'ready' || status === 'paused')) {
+        this.setlistPreload.warmNextInSetlist(setlist, index);
+      }
+    });
+
+    combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(
         tap(() => {
           this.pageLoading.set(true);
@@ -218,25 +287,62 @@ export class PlayerPageComponent {
           this.playback.clearLoadSummary();
           this.resetMixerScrollMetrics();
         }),
-        switchMap((pm) => {
+        switchMap(([pm, qm]) => {
           const projectId = pm.get('projectId');
           if (!projectId) {
             this.pageLoading.set(false);
             this.pageError.set('Falta el id del pack en la ruta.');
             return EMPTY;
           }
-          return from(this.storage.getProjectById(projectId)).pipe(
-            switchMap((project) => {
+
+          const setlistId = qm.get('setlist');
+          const entryRaw = qm.get('entry');
+
+          return from(
+            Promise.all([
+              this.storage.getProjectById(projectId),
+              setlistId ? this.setlistStorage.getSetlistById(setlistId) : Promise.resolve(null),
+            ]),
+          ).pipe(
+            switchMap(([project, setlist]) => {
               if (!project) {
                 this.pageLoading.set(false);
                 this.pageError.set('Pack no encontrado.');
+                this.activeSetlist.set(null);
                 return EMPTY;
               }
+
+              if (setlistId && !setlist) {
+                this.pageLoading.set(false);
+                this.pageError.set('Setlist no encontrado.');
+                this.activeSetlist.set(null);
+                return EMPTY;
+              }
+
+              let entryIndex = 0;
+              if (setlist) {
+                const entries = sortSetlistEntriesByOrder(setlist.entries);
+                if (entryRaw !== null) {
+                  const parsed = Number.parseInt(entryRaw, 10);
+                  entryIndex = Number.isFinite(parsed) ? parsed : 0;
+                } else {
+                  entryIndex = entries.findIndex((e) => e.packId === projectId);
+                }
+                entryIndex = Math.max(0, Math.min(entryIndex, Math.max(0, entries.length - 1)));
+                this.activeSetlist.set({ ...setlist, entries });
+                this.activeEntryIndex.set(entryIndex);
+              } else {
+                this.activeSetlist.set(null);
+                this.activeEntryIndex.set(0);
+              }
+
               return from(this.playback.loadProject(project)).pipe(
                 tap(() => {
                   const st = this.playback.state();
                   if (st.status === 'error') {
                     this.pageError.set(st.errorMessage ?? 'No se pudo preparar el audio.');
+                  } else if (setlist) {
+                    this.setlistPreload.warmNextInSetlist(setlist, this.activeEntryIndex());
                   }
                   this.pageLoading.set(false);
                   requestAnimationFrame(() => {
@@ -255,6 +361,30 @@ export class PlayerPageComponent {
         takeUntilDestroyed(),
       )
       .subscribe();
+  }
+
+  goToPreviousPack(): void {
+    this.goToAdjacentPack(-1);
+  }
+
+  goToNextPack(): void {
+    this.goToAdjacentPack(1);
+  }
+
+  private goToAdjacentPack(delta: -1 | 1): void {
+    const setlist = this.activeSetlist();
+    if (!setlist) {
+      return;
+    }
+    const entries = sortSetlistEntriesByOrder(setlist.entries);
+    const nextIndex = this.activeEntryIndex() + delta;
+    if (nextIndex < 0 || nextIndex >= entries.length) {
+      return;
+    }
+    const entry = entries[nextIndex]!;
+    void this.router.navigate(['/player', entry.packId], {
+      queryParams: { setlist: setlist.id, entry: nextIndex },
+    });
   }
 
   onSeekPointerDown(ev: PointerEvent): void {

@@ -12,6 +12,7 @@ La aplicación funciona completamente en el cliente: no requiere backend, autent
 - Agregar o quitar pistas en packs existentes, manteniendo al menos una pista con audio.
 - Guardar packs y archivos localmente en IndexedDB mediante Dexie.
 - Listar, renombrar y eliminar packs guardados.
+- Crear setlists ordenados con packs del repertorio, precargarlos y abrirlos en el reproductor.
 - Reproducir stems sincronizados mediante Web Audio.
 - Decodificar audio en un Web Worker, con fallback al hilo principal si el navegador no lo permite.
 - Guardar PCM decodificado en IndexedDB y mantener packs recientes en caché de memoria (LRU según RAM del dispositivo) durante la sesión.
@@ -138,12 +139,13 @@ npm run build
 ## Uso básico
 
 1. Entra a `Packs`.
-2. Escribe un nombre para el pack.
+2. Escribe un nombre para el pack o crea un setlist.
 3. Selecciona uno o más archivos en formato MP3, WAV o M4A.
-4. Crea el pack y ábrelo desde la lista.
+4. Crea el pack y ábrelo desde la lista, o abre un setlist con **Abrir**.
 5. Usa el reproductor para mezclar, panear, silenciar, poner pistas en solo, reordenar pistas y controlar la reproducción.
-6. Activa `Modo en vivo` cuando necesites bloquear el seek y exigir que todas las pistas estén listas antes de reproducir.
-7. Vuelve a `Packs` si necesitas agregar o quitar pistas del pack.
+6. En un setlist, usa **Anterior** / **Siguiente** para cambiar de pack; el siguiente se precarga en segundo plano.
+7. Activa `Modo en vivo` cuando necesites bloquear el seek y exigir que todas las pistas estén listas antes de reproducir.
+8. Vuelve a `Packs` si necesitas agregar o quitar pistas del pack o editar setlists.
 
 ## Arquitectura
 
@@ -159,7 +161,8 @@ Los componentes de página manejan la interacción y presentación. La lógica d
 
 ## Estructura principal
 
-- `src/app/features/projects`: creación, importación, edición y eliminación de packs y pistas.
+- `src/app/features/setlists`: persistencia, precarga en memoria y estado de setlists.
+- `src/app/features/projects`: creación, importación, edición y eliminación de packs, pistas y setlists en UI.
 - `src/app/features/player`: reproductor, mezclador y estado de reproducción.
 - `src/app/core/contracts`: interfaces para persistencia, reproducción y motor de audio.
 - `src/app/core/services`: motor de audio, decodificación, caché de sesión y Wake Lock.
@@ -170,7 +173,7 @@ Los componentes de página manejan la interacción y presentación. La lógica d
 - `src/app/shared`: iconos, pipes, estilos compartidos y utilidades de UI.
 - `public`: manifest, favicon y reglas de redirección para el despliegue SPA.
 
-Las rutas `/packs` y `/player/:projectId` cargan sus páginas de forma diferida. La ruta `/projects` redirige a `/packs`.
+Las rutas `/packs` y `/player/:projectId` cargan sus páginas de forma diferida. La ruta `/projects` redirige a `/packs`. El reproductor acepta `?setlist=<id>&entry=<índice>` para navegar dentro de un setlist.
 
 ## Decisiones y limitaciones
 
