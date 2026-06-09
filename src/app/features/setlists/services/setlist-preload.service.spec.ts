@@ -60,13 +60,24 @@ describe('SetlistPreloadService playback warm', () => {
 
         AudioSessionCacheService,
 
-        { provide: ProjectStorageService, useValue: {} },
+        {
+          provide: ProjectStorageService,
+          useValue: { getProjectById: async () => null },
+        },
 
         {
 
           provide: PlayerPlaybackService,
 
-          useValue: { isProjectWarm: () => false, isProjectCached: () => false },
+          useValue: {
+
+            isProjectWarm: () => false,
+
+            isProjectCached: () => false,
+
+            warmProjectInCache: async () => 'ready' as const,
+
+          },
 
         },
 
@@ -128,17 +139,51 @@ describe('SetlistPreloadService playback warm', () => {
 
   });
 
-  it('counts as ready when the pack is already in session cache', () => {
 
-    const cache = TestBed.inject(AudioSessionCacheService);
 
-    cache.set('pack-2', 'fp', new Map([['t1', { length: 100, numberOfChannels: 2 } as AudioBuffer]]));
+  it('awaits in-flight warm before preparing navigation', async () => {
 
-    service.statusByPackId.set(new Map([['pack-2', 'pending']]));
+    let resolveWarm!: (status: 'ready') => void;
 
-    expect(service.isReady('pack-2')).toBe(true);
+    const warmPromise = new Promise<'ready'>((resolve) => {
 
-    expect(service.getStatus('pack-2')).toBe('ready');
+      resolveWarm = resolve;
+
+    });
+
+    warmPackSpy.and.returnValue(warmPromise);
+
+
+
+    const warm = service.warmPackById('pack-2', 'pack-1');
+
+    const prepare = service.prepareForPackNavigation('pack-2');
+
+
+
+    let prepareDone = false;
+
+    void prepare.then(() => {
+
+      prepareDone = true;
+
+    });
+
+
+
+    await Promise.resolve();
+
+    expect(prepareDone).toBe(false);
+
+
+
+    resolveWarm('ready');
+
+    await warm;
+
+    await prepare;
+
+    expect(prepareDone).toBe(true);
 
   });
 

@@ -233,7 +233,7 @@ export class PlayerPageComponent {
     return this.playback.liveMode() && !this.nextPackReady();
   });
 
-  readonly showNextPackPreloadHint = computed(() => {
+  readonly nextPackSetlistHint = computed(() => {
     if (
       !this.hasSetlistNav() ||
       this.pageLoading() ||
@@ -241,10 +241,27 @@ export class PlayerPageComponent {
       !this.playback.liveMode() ||
       this.nextPackReady()
     ) {
-      return false;
+      return null;
     }
     const packId = this.nextEntryPackId();
-    return packId ? this.setlistPreload.getStatus(packId) === 'loading' : false;
+    if (!packId) {
+      return null;
+    }
+    const status = this.setlistPreload.getStatus(packId);
+    const progress = this.setlistPreload.warmProgressByPackId().get(packId);
+    const progressLabel =
+      progress && progress.total > 0 ? ` (${progress.loaded}/${progress.total})` : '';
+
+    if (status === 'loading') {
+      return `Precargando el siguiente pack${progressLabel}… En modo en vivo, Siguiente se habilita al terminar.`;
+    }
+    if (status === 'partial') {
+      return `Solo parte del siguiente pack cupo en memoria${progressLabel}; Siguiente cargará el resto.`;
+    }
+    if (status === 'error') {
+      return 'No cabe el siguiente pack en memoria mientras suena el actual; cargará al pulsar Siguiente.';
+    }
+    return null;
   });
 
   readonly previousPackDisabled = computed(
@@ -275,11 +292,22 @@ export class PlayerPageComponent {
     if (this.nextPackReady()) {
       return 'Listo';
     }
-    const status = this.nextEntryPackId()
-      ? this.setlistPreload.getStatus(this.nextEntryPackId()!)
-      : 'pending';
+    const packId = this.nextEntryPackId();
+    const status = packId ? this.setlistPreload.getStatus(packId) : 'pending';
+    const progress = packId
+      ? this.setlistPreload.warmProgressByPackId().get(packId)
+      : undefined;
     if (status === 'loading') {
+      if (progress && progress.total > 0) {
+        return `Precargando ${progress.loaded}/${progress.total}`;
+      }
       return 'Precargando…';
+    }
+    if (status === 'partial') {
+      if (progress && progress.total > 0) {
+        return `Parcial ${progress.loaded}/${progress.total}`;
+      }
+      return 'Parcial';
     }
     if (status === 'error') {
       return 'Sin memoria';
@@ -457,9 +485,12 @@ export class PlayerPageComponent {
                 this.setlistPackNames.set(new Map());
               }
 
-              this.setlistPreload.prepareForPackNavigation(project.id);
-
-              return from(this.playback.loadProject(project)).pipe(
+              return from(
+                (async () => {
+                  await this.setlistPreload.prepareForPackNavigation(project.id);
+                  await this.playback.loadProject(project);
+                })(),
+              ).pipe(
                 tap(() => {
                   const st = this.playback.state();
                   if (st.status === 'error') {

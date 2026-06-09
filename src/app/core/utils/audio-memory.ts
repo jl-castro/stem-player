@@ -58,6 +58,34 @@ export function getSessionCacheBudgetBytes(): number {
   return Math.floor(getRamBlockThresholdBytes() * 0.45);
 }
 
+/** Valor bruto de `navigator.deviceMemory` (GB), si el navegador lo expone. */
+export function getReportedDeviceMemoryGb(): number | undefined {
+  const dm = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  if (typeof dm !== 'number' || !Number.isFinite(dm) || dm <= 0) {
+    return undefined;
+  }
+  return dm;
+}
+
+/** Log de diagnóstico: memoria reportada por el navegador y presupuestos usados por la app. */
+export function logAudioMemoryBudget(): void {
+  if (typeof console === 'undefined') {
+    return;
+  }
+  const deviceMemoryGb = getReportedDeviceMemoryGb();
+  const thresholdBytes = getRamBlockThresholdBytes();
+  const cacheBudgetBytes = getSessionCacheBudgetBytes();
+  const deviceMemoryLabel =
+    deviceMemoryGb !== undefined ? `${deviceMemoryGb} GB` : 'no disponible (usa umbral por defecto)';
+
+  console.info(
+    '[stem-player] Memoria del navegador: deviceMemory=%s | umbral app=%s | caché precarga=%s',
+    deviceMemoryLabel,
+    formatBytes(thresholdBytes),
+    formatBytes(cacheBudgetBytes),
+  );
+}
+
 /** Estima bytes de `AudioBuffer` decodificados (float32 por canal). */
 /** Menos paralelismo en packs con muchas pistas para no duplicar PCM + AudioBuffer en RAM. */
 export function pickTrackLoadConcurrency(trackCount: number, maxDefault = 4): number {

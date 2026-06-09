@@ -50,8 +50,8 @@
     @if (!pageLoading() && hasInactiveStems()) {
       <p class="hint">Las pistas «Sin audio» no tienen archivo en este dispositivo.</p>
     }
-    @if (showNextPackPreloadHint()) {
-      <p class="hint">Precargando el siguiente pack… En modo en vivo, Siguiente se habilita al terminar.</p>
+    @if (nextPackSetlistHint(); as hint) {
+      <p class="hint">{{ hint }}</p>
     }
   </header>
 

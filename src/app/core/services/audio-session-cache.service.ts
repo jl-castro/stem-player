@@ -40,6 +40,57 @@ export class AudioSessionCacheService {
     return entry.buffers;
   }
 
+  /** Añade una pista a la caché sin reemplazar el pack entero (menor pico de RAM al precargar). */
+  mergeTrackBuffer(
+    projectId: string,
+    assetKeysFingerprint: string,
+    trackId: string,
+    buffer: AudioBuffer,
+  ): boolean {
+    const trackBytes = buffer.length * buffer.numberOfChannels * 4;
+    let entry = this.entries.get(projectId);
+
+    if (entry && entry.assetKeysFingerprint !== assetKeysFingerprint) {
+      this.removeEntry(projectId);
+      entry = undefined;
+    }
+
+    if (entry?.buffers.has(trackId)) {
+      return true;
+    }
+
+    while (this.cachedBytes + trackBytes > this.budgetBytes && this.entries.size > 0) {
+      const sizeBefore = this.entries.size;
+      this.evictOldest();
+      if (this.entries.size === sizeBefore) {
+        this.evictOldestIncludingPinned();
+      }
+      if (this.entries.size === sizeBefore) {
+        break;
+      }
+    }
+
+    if (this.cachedBytes + trackBytes > this.budgetBytes) {
+      return false;
+    }
+
+    if (!entry) {
+      entry = {
+        projectId,
+        assetKeysFingerprint,
+        buffers: new Map(),
+        estimatedBytes: 0,
+      };
+    }
+
+    entry.buffers.set(trackId, buffer);
+    entry.estimatedBytes += trackBytes;
+    this.entries.set(projectId, entry);
+    this.cachedBytes += trackBytes;
+    this.touchEntry(projectId, entry);
+    return true;
+  }
+
   set(projectId: string, assetKeysFingerprint: string, buffers: Map<string, AudioBuffer>): boolean {
     const estimatedBytes = estimateAudioBuffersRamBytes(buffers);
     this.removeEntry(projectId);

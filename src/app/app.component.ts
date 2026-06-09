@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular
 import { RouterOutlet } from '@angular/router';
 
 import { BackgroundWorkService } from './core/services/background-work.service';
+import { logAudioMemoryBudget } from './core/utils/audio-memory';
 import { LucideX } from './shared/icons/app-lucide-icons';
 
 /** Raíz de la app: layout mínimo y salida del enrutador (secciones en `features/`). */
@@ -24,6 +25,8 @@ export class AppComponent {
     if (typeof window === 'undefined') {
       return;
     }
+
+    logAudioMemoryBudget();
 
     const syncViewportHeight = (): void => {
       const height = window.visualViewport?.height ?? window.innerHeight;

@@ -277,6 +277,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
   async warmProjectInCache(
     project: Readonly<Project>,
     signal: AbortSignal = this.backgroundWork.signal,
+    onProgress?: (progress: LoadProgress) => void,
   ): Promise<'ready' | 'partial' | 'failed'> {
     const copy = this.prepareProjectCopy(project);
     const fingerprint = buildAssetKeysFingerprint(copy.tracks);
@@ -297,7 +298,13 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
 
     let resolved: ResolvedProjectBuffers;
     try {
-      resolved = await this.resolveProjectBuffers(copy, undefined, signal, TRACK_WARM_CONCURRENCY);
+      resolved = await this.resolveProjectBuffers(
+        copy,
+        onProgress,
+        signal,
+        TRACK_WARM_CONCURRENCY,
+        { persistEachTrackToCache: true },
+      );
     } catch (error) {
       if (isBackgroundWorkAborted(error)) {
         return 'failed';
@@ -310,6 +317,13 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     }
 
     if (!this.sessionCache.set(project.id, resolved.fingerprint, resolved.buffers)) {
+      const partial = this.sessionCache.get(project.id, fingerprint);
+      if (partial && partial.size > 0) {
+        if (this.isBufferMapComplete(copy, partial)) {
+          return 'ready';
+        }
+        return 'partial';
+      }
       return 'failed';
     }
 
@@ -583,6 +597,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     onProgress?: (progress: LoadProgress) => void,
     signal: AbortSignal = this.backgroundWork.signal,
     concurrency = TRACK_LOAD_CONCURRENCY,
+    options?: { persistEachTrackToCache?: boolean },
   ): Promise<ResolvedProjectBuffers> {
     const throwIfAborted = (): void => {
       if (signal.aborted) {
@@ -643,6 +658,14 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
         const trackMeta = copy.tracks.find((t) => t.id === result.trackId);
         if (trackMeta) {
           trackMeta.durationMs = result.durationMs;
+        }
+        if (options?.persistEachTrackToCache) {
+          this.sessionCache.mergeTrackBuffer(
+            copy.id,
+            fingerprint,
+            result.trackId,
+            result.buffer,
+          );
         }
       }
     }
