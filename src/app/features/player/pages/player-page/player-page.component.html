@@ -347,56 +347,58 @@
           </button>
         </div>
       }
-      <div class="transport-row transport-row--primary">
-        <button
-          type="button"
-          class="btn btn--primary btn--icon btn--icon-only btn--transport-play"
-          [disabled]="playDisabled()"
-          [attr.aria-label]="playback.state().status === 'playing' ? 'Pausar reproducción' : 'Reproducir'"
-          (click)="togglePlayPause()"
-        >
-          @if (playback.state().status === 'playing') {
-            <svg lucidePause [size]="24"></svg>
-          } @else {
-            <svg lucidePlay [size]="24"></svg>
-          }
-        </button>
-        <button
-          type="button"
-          class="btn btn--icon btn--icon-only btn--ghost"
-          [disabled]="playDisabled()"
-          aria-label="Detener reproducción"
-          (click)="playback.stop()"
-        >
-          <svg lucideSquare [size]="20"></svg>
-        </button>
-        <button
-          type="button"
-          class="btn btn--icon btn--icon-only btn--ghost"
-          [disabled]="playDisabled()"
-          aria-label="Reiniciar desde el inicio"
-          (click)="playback.restart()"
-        >
-          <svg lucideRotateCcw [size]="20"></svg>
-        </button>
-      </div>
+      <div class="transport-controls-bar">
+        <div class="transport-row transport-row--primary">
+          <button
+            type="button"
+            class="btn btn--primary btn--icon btn--icon-only btn--transport-play"
+            [disabled]="playDisabled()"
+            [attr.aria-label]="playback.state().status === 'playing' ? 'Pausar reproducción' : 'Reproducir'"
+            (click)="togglePlayPause()"
+          >
+            @if (playback.state().status === 'playing') {
+              <svg lucidePause [size]="24"></svg>
+            } @else {
+              <svg lucidePlay [size]="24"></svg>
+            }
+          </button>
+          <button
+            type="button"
+            class="btn btn--icon btn--icon-only btn--ghost"
+            [disabled]="playDisabled()"
+            aria-label="Detener reproducción"
+            (click)="playback.stop()"
+          >
+            <svg lucideSquare [size]="20"></svg>
+          </button>
+          <button
+            type="button"
+            class="btn btn--icon btn--icon-only btn--ghost"
+            [disabled]="playDisabled()"
+            aria-label="Reiniciar desde el inicio"
+            (click)="playback.restart()"
+          >
+            <svg lucideRotateCcw [size]="20"></svg>
+          </button>
+        </div>
 
-      <label class="master-row">
-        <span class="master-row__icon" aria-hidden="true">
-          <svg lucideVolume2 [size]="18"></svg>
-        </span>
-        <span class="sr-only">Volumen master</span>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          aria-label="Volumen master"
-          [value]="playback.state().masterVolume"
-          [disabled]="playDisabled()"
-          (input)="playback.setMasterVolume($any($event.target).valueAsNumber)"
-        />
-      </label>
+        <label class="master-row">
+          <span class="master-row__icon" aria-hidden="true">
+            <svg lucideVolume2 [size]="18"></svg>
+          </span>
+          <span class="sr-only">Volumen master</span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            aria-label="Volumen master"
+            [value]="playback.state().masterVolume"
+            [disabled]="playDisabled()"
+            (input)="playback.setMasterVolume($any($event.target).valueAsNumber)"
+          />
+        </label>
+      </div>
     </div>
   </footer>
 </div>

@@ -92,20 +92,42 @@
 
         @if (packsAvailableToAdd(sl).length > 0) {
           <div class="setlist-editor__add">
-            <select
-              class="field-input field-input--compact"
-              [value]="addPackId()"
-              (change)="onAddPackSelect($event)"
-              [disabled]="editorBusy()"
-            >
-              <option value="">Elegir pack…</option>
-              @for (pack of packsAvailableToAdd(sl); track pack.id) {
-                <option [value]="pack.id">{{ pack.name }}</option>
+            <div #packPicker class="field-picker" [class.field-picker--open]="packPickerOpen()">
+              <button
+                type="button"
+                class="field-picker__trigger field-input field-input--compact"
+                [disabled]="editorBusy()"
+                [attr.aria-expanded]="packPickerOpen()"
+                aria-haspopup="listbox"
+                (click)="togglePackPicker($event)"
+              >
+                <span
+                  class="field-picker__label"
+                  [class.field-picker__label--placeholder]="!addPackId()"
+                >{{ addPackLabel() }}</span>
+                <svg lucideChevronDown [size]="18" class="field-picker__chevron" aria-hidden="true"></svg>
+              </button>
+              @if (packPickerOpen()) {
+                <ul class="field-picker__menu" role="listbox" aria-label="Packs disponibles">
+                  @for (pack of packsAvailableToAdd(sl); track pack.id) {
+                    <li role="presentation">
+                      <button
+                        type="button"
+                        class="field-picker__option"
+                        role="option"
+                        [attr.aria-selected]="addPackId() === pack.id"
+                        (click)="selectPackToAdd(pack.id, $event)"
+                      >
+                        {{ pack.name }}
+                      </button>
+                    </li>
+                  }
+                </ul>
               }
-            </select>
+            </div>
             <button
               type="button"
-              class="btn btn--small btn--primary"
+              class="btn btn--small btn--primary btn--create"
               [disabled]="editorBusy() || !addPackId()"
               (click)="onAddPack(sl.id)"
             >

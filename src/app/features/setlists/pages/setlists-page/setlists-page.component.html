@@ -22,12 +22,12 @@
         />
         <button
           type="button"
-          class="btn btn--primary btn--icon"
-          [disabled]="pageBusy() || !newSetlistName().trim()"
+          class="btn btn--primary btn--create"
+          [disabled]="pageBusy() || !newSetlistName().trim() || isCreating()"
+          [attr.aria-label]="isCreating() ? 'Creando setlist…' : 'Crear setlist'"
           (click)="onCreateSetlist()"
         >
-          <svg lucidePlus [size]="18" aria-hidden="true"></svg>
-          <span>Crear</span>
+          {{ isCreating() ? '…' : 'Crear' }}
         </button>
       </div>
       @if (createError(); as cErr) {
@@ -91,12 +91,13 @@
                 <div class="setlist-actions">
                   <button
                     type="button"
-                    class="btn btn--small btn--primary btn--icon"
+                    class="btn btn--small btn--primary btn--icon btn--icon-only"
                     [disabled]="pageBusy() || setlist.entries.length === 0"
+                    [attr.aria-label]="'Iniciar ' + setlist.name"
+                    title="Iniciar"
                     (click)="onPlaySetlist(setlist)"
                   >
-                    <svg lucidePlay [size]="16" aria-hidden="true"></svg>
-                    <span>Iniciar</span>
+                    <svg lucidePlay [size]="18" aria-hidden="true"></svg>
                   </button>
                   <button
                     type="button"

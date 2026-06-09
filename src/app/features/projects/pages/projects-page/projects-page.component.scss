@@ -1,4 +1,5 @@
 @use '../../../../shared/ui/library-page';
+@use '../../../../shared/ui/layout';
 
 :host {
   display: block;
@@ -6,6 +7,7 @@
   background-color: var(--sp-bg);
   color: var(--sp-text);
   color-scheme: dark;
+  overflow-x: clip;
 }
 
 .create-panel {
@@ -17,12 +19,50 @@
   border-radius: var(--sp-radius-lg);
   background: var(--sp-surface-raised);
   box-shadow: var(--sp-shadow);
+  min-width: 0;
 }
 
 .create-row {
+  /* layout partial */
+}
+
+.project-row {
   display: flex;
+  align-items: center;
   gap: var(--sp-space-sm);
-  align-items: stretch;
+  min-height: var(--sp-touch-min);
+  min-width: 0;
+  padding: 0.35rem 0.35rem 0.35rem 0.65rem;
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-md);
+  background: var(--sp-surface-raised);
+  transition: border-color var(--sp-motion-fast) var(--sp-ease-out);
+
+  &:hover {
+    border-color: var(--sp-border-strong);
+  }
+}
+
+@media (max-width: 479px) {
+  .project-row {
+    flex-wrap: wrap;
+    padding: var(--sp-space-sm);
+  }
+
+  .project-link {
+    flex: 1 1 100%;
+  }
+
+  .project-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (min-width: 768px) {
+  .project-row {
+    flex-wrap: nowrap;
+  }
 }
 
 .field--file {
@@ -88,12 +128,6 @@
   }
 }
 
-.btn--create {
-  flex-shrink: 0;
-  min-width: 4.5rem;
-  padding-inline: 1rem;
-  font-weight: 600;
-}
 
 .field-input {
   min-height: var(--sp-touch-min);
@@ -102,6 +136,8 @@
   border: 1px solid var(--sp-border-strong);
   font-size: 0.95rem;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   background: var(--sp-input-bg);
   color: var(--sp-text);
   caret-color: var(--sp-accent);
@@ -168,22 +204,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-}
-
-.project-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-space-sm);
-  min-height: var(--sp-touch-min);
-  padding: 0.35rem 0.35rem 0.35rem 0.65rem;
-  border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-md);
-  background: var(--sp-surface-raised);
-  transition: border-color var(--sp-motion-fast) var(--sp-ease-out);
-
-  &:hover {
-    border-color: var(--sp-border-strong);
-  }
 }
 
 .project-link {
@@ -278,6 +298,11 @@
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--sp-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .tracks-list {

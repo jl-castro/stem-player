@@ -13,7 +13,6 @@ import {
   LucideList,
   LucidePencil,
   LucidePlay,
-  LucidePlus,
   LucideTrash2,
   LucideX,
 } from '../../../../shared/icons/app-lucide-icons';
@@ -28,7 +27,6 @@ import { SetlistStorageService } from '../../services/setlist-storage.service';
     LucideList,
     LucidePencil,
     LucidePlay,
-    LucidePlus,
     LucideTrash2,
     LucideCheck,
     LucideX,

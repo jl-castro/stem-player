@@ -3,8 +3,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  HostListener,
   inject,
   signal,
+  ViewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -17,6 +20,7 @@ import {
 } from '../../../../core/utils/setlist-order.util';
 import {
   LucideArrowLeft,
+  LucideChevronDown,
   LucideGripVertical,
   LucidePlay,
   LucideTrash2,
@@ -29,7 +33,15 @@ import { ProjectStorageService } from '../../../projects/services/project-storag
 @Component({
   selector: 'app-setlist-detail-page',
   standalone: true,
-  imports: [RouterLink, DragDropModule, LucideArrowLeft, LucideGripVertical, LucidePlay, LucideTrash2],
+  imports: [
+    RouterLink,
+    DragDropModule,
+    LucideArrowLeft,
+    LucideChevronDown,
+    LucideGripVertical,
+    LucidePlay,
+    LucideTrash2,
+  ],
   templateUrl: './setlist-detail-page.component.html',
   styleUrl: './setlist-detail-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,6 +62,9 @@ export class SetlistDetailPageComponent {
   readonly editorBusy = signal(false);
   readonly preloading = signal(false);
   readonly addPackId = signal('');
+  readonly packPickerOpen = signal(false);
+
+  @ViewChild('packPicker') private packPickerRef?: ElementRef<HTMLElement>;
 
   readonly setlistPreloadProgress = this.setlistPreload.setlistPreloadProgress;
 
@@ -61,6 +76,7 @@ export class SetlistDetailPageComponent {
           this.pageError.set(null);
           this.editorError.set(null);
           this.addPackId.set('');
+          this.packPickerOpen.set(false);
         }),
         switchMap((pm) => {
           const setlistId = pm.get('setlistId');
@@ -122,8 +138,44 @@ export class SetlistDetailPageComponent {
     return this.projects().filter((p) => !used.has(p.id));
   }
 
-  onAddPackSelect(ev: Event): void {
-    this.addPackId.set((ev.target as HTMLSelectElement).value);
+  addPackLabel(): string {
+    const id = this.addPackId();
+    if (!id) {
+      return 'Elegir pack…';
+    }
+    return this.packName(id);
+  }
+
+  togglePackPicker(event: Event): void {
+    event.stopPropagation();
+    if (this.editorBusy()) {
+      return;
+    }
+    this.packPickerOpen.update((open) => !open);
+  }
+
+  selectPackToAdd(packId: string, event: Event): void {
+    event.stopPropagation();
+    this.addPackId.set(packId);
+    this.packPickerOpen.set(false);
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.packPickerOpen()) {
+      return;
+    }
+    const root = this.packPickerRef?.nativeElement;
+    if (root && !root.contains(event.target as Node)) {
+      this.packPickerOpen.set(false);
+    }
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      this.packPickerOpen.set(false);
+    }
   }
 
   async onAddPack(setlistId: string): Promise<void> {
@@ -147,6 +199,7 @@ export class SetlistDetailPageComponent {
       const updated = await this.setlistStorage.saveSetlistEntries(setlistId, entries);
       this.setlist.set(updated);
       this.addPackId.set('');
+      this.packPickerOpen.set(false);
       this.setlistPreload.refreshStatusForPack(packId);
     } catch (e) {
       this.editorError.set(e instanceof Error ? e.message : String(e));

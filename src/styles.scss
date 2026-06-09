@@ -1,5 +1,6 @@
 @use 'app/shared/ui/tokens';
 @use 'app/shared/ui/components';
+@use 'app/shared/ui/layout';
 
 *,
 *::before,
@@ -19,6 +20,7 @@ body {
   margin: 0;
   min-height: var(--sp-app-height);
   overscroll-behavior: none;
+  overflow-x: clip;
   font-family:
     system-ui,
     -apple-system,

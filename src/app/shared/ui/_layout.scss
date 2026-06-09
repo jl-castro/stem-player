@@ -1,0 +1,97 @@
+/* Shared layout, overflow guards, and responsive patterns for library pages. */
+
+:root {
+  --sp-library-content-bottom: calc(
+    var(--sp-library-nav-height) + var(--sp-space-lg) + env(safe-area-inset-bottom, 0px)
+  );
+}
+
+@mixin text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+@mixin flex-row-truncate {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-sm);
+  min-width: 0;
+}
+
+.create-row {
+  display: flex;
+  gap: var(--sp-space-sm);
+  align-items: stretch;
+  min-width: 0;
+
+  > .field-input {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+
+  > .btn,
+  > a.btn {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 479px) {
+  .create-row {
+    flex-direction: column;
+
+    > .btn,
+    > a.btn {
+      width: 100%;
+    }
+  }
+}
+
+.list-card-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-sm);
+  min-width: 0;
+  min-height: var(--sp-touch-min);
+}
+
+.list-card-row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.list-card-row__actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+@media (max-width: 639px) {
+  .list-card-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding-block: var(--sp-space-sm);
+  }
+
+  .list-card-row__main {
+    flex: 1 1 100%;
+  }
+
+  .list-card-row__actions {
+    width: 100%;
+  }
+}
+
+@media (min-width: 768px) {
+  .list-card-row {
+    flex-wrap: nowrap;
+  }
+
+  .list-card-row__actions {
+    flex-wrap: nowrap;
+  }
+}
