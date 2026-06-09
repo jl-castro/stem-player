@@ -103,14 +103,22 @@ export class PlayerPageComponent {
     return (this.mixerScrollValue() / max) * travel;
   });
 
-  readonly seekThumbMs = computed(
-    () => this.scrubMs() ?? this.playback.state().currentTimeMs,
+  readonly seekThumbMs = computed(() => {
+    if (this.pageLoading()) {
+      return 0;
+    }
+    return this.scrubMs() ?? this.playback.state().currentTimeMs;
+  });
+  readonly seekMax = computed(() =>
+    this.pageLoading() ? 1 : Math.max(1, this.playback.state().durationMs),
   );
-  readonly seekMax = computed(() => Math.max(1, this.playback.state().durationMs));
+  readonly transportDurationMs = computed(() =>
+    this.pageLoading() ? 0 : this.playback.state().durationMs,
+  );
 
   readonly seekAriaValueText = computed(() => {
     const pos = formatMsAsMmSs(this.seekThumbMs());
-    const dur = formatMsAsMmSs(this.playback.state().durationMs);
+    const dur = formatMsAsMmSs(this.transportDurationMs());
     return `${pos} de ${dur}`;
   });
 
@@ -235,6 +243,10 @@ export class PlayerPageComponent {
   });
 
   readonly nextPackStatusHint = computed(() => {
+    if (this.pageLoading()) {
+      const percent = this.loadProgressPercent();
+      return percent !== null ? `${percent} %` : 'Cargando…';
+    }
     if (!this.hasNextPack()) {
       return '';
     }
@@ -271,6 +283,9 @@ export class PlayerPageComponent {
   });
 
   readonly setlistNavCenterTitle = computed(() => {
+    if (this.pageLoading()) {
+      return 'Cargando pack actual…';
+    }
     if (!this.hasNextPack()) {
       return 'Fin del setlist';
     }
@@ -327,6 +342,9 @@ export class PlayerPageComponent {
     }
 
     effect(() => {
+      if (this.pageLoading()) {
+        return;
+      }
       const setlist = this.activeSetlist();
       const index = this.activeEntryIndex();
       const status = this.playback.state().status;

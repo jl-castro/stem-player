@@ -101,6 +101,11 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
 
     this.loadedProject.set(null);
     this.loadSummary.set(null);
+    this.state.set({
+      ...createInitialPlayerState(),
+      projectId: project.id,
+      canPlay: false,
+    });
 
     const fail = (message: string): void => {
       this.project = null;

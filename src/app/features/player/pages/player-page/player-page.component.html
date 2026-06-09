@@ -298,7 +298,7 @@
     <div class="transport-progress">
       <div class="transport-times" aria-hidden="true">
         <span class="transport-time transport-time--current">{{ seekThumbMs() | formatMs }}</span>
-        <span class="transport-time transport-time--duration">{{ playback.state().durationMs | formatMs }}</span>
+        <span class="transport-time transport-time--duration">{{ transportDurationMs() | formatMs }}</span>
       </div>
 
       <label class="seek-label">
@@ -339,10 +339,10 @@
 
           <div class="setlist-nav-center">
             <span class="setlist-nav-next-name">{{ setlistNavCenterTitle() }}</span>
-            @if (hasNextPack()) {
+            @if (pageLoading() || hasNextPack()) {
               <span
                 class="setlist-nav-status"
-                [attr.data-ready]="nextPackReady()"
+                [attr.data-ready]="!pageLoading() && nextPackReady()"
               >
                 {{ nextPackStatusHint() }}
               </span>

@@ -138,14 +138,14 @@ npm run build
 
 ## Uso básico
 
-1. Entra a `Packs`.
-2. Escribe un nombre para el pack o crea un setlist.
-3. Selecciona uno o más archivos en formato MP3, WAV o M4A.
-4. Crea el pack y ábrelo desde la lista, o abre un setlist con **Abrir**.
+1. Entra a **Packs** para importar stems y gestionar la biblioteca.
+2. Entra a **Setlists** para armar el repertorio del show (orden, precarga e inicio).
+3. En Packs, escribe un nombre, elige archivos MP3, WAV o M4A y pulsa **Crear**.
+4. Abre un pack desde la lista o inicia un setlist con **Iniciar**.
 5. Usa el reproductor para mezclar, panear, silenciar, poner pistas en solo, reordenar pistas y controlar la reproducción.
 6. En un setlist, usa **Anterior** / **Siguiente** para cambiar de pack; el siguiente se precarga en segundo plano.
 7. Activa `Modo en vivo` cuando necesites bloquear el seek y exigir que todas las pistas estén listas antes de reproducir.
-8. Vuelve a `Packs` si necesitas agregar o quitar pistas del pack o editar setlists.
+8. Edita el orden de un setlist en `/setlists/:id`; vuelve a Packs para añadir o quitar pistas de un pack.
 
 ## Arquitectura
 
@@ -162,7 +162,7 @@ Los componentes de página manejan la interacción y presentación. La lógica d
 ## Estructura principal
 
 - `src/app/features/setlists`: persistencia, precarga en memoria y estado de setlists.
-- `src/app/features/projects`: creación, importación, edición y eliminación de packs, pistas y setlists en UI.
+- `src/app/features/projects`: creación, importación, edición y eliminación de packs y pistas.
 - `src/app/features/player`: reproductor, mezclador y estado de reproducción.
 - `src/app/core/contracts`: interfaces para persistencia, reproducción y motor de audio.
 - `src/app/core/services`: motor de audio, decodificación, caché de sesión y Wake Lock.
@@ -173,7 +173,7 @@ Los componentes de página manejan la interacción y presentación. La lógica d
 - `src/app/shared`: iconos, pipes, estilos compartidos y utilidades de UI.
 - `public`: manifest, favicon y reglas de redirección para el despliegue SPA.
 
-Las rutas `/packs` y `/player/:projectId` cargan sus páginas de forma diferida. La ruta `/projects` redirige a `/packs`. El reproductor acepta `?setlist=<id>&entry=<índice>` para navegar dentro de un setlist.
+Las rutas `/packs`, `/setlists`, `/setlists/:setlistId` y `/player/:projectId` cargan sus páginas de forma diferida. `/projects` redirige a `/packs`. El reproductor acepta `?setlist=<id>&entry=<índice>` para navegar dentro de un setlist.
 
 ## Decisiones y limitaciones
 

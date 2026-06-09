@@ -1,0 +1,26 @@
+<div class="library-shell">
+  <div class="library-shell__content">
+    <router-outlet />
+  </div>
+
+  <nav class="library-nav" aria-label="Biblioteca">
+    <a
+      routerLink="/packs"
+      routerLinkActive="library-nav__link--active"
+      class="library-nav__link"
+      [routerLinkActiveOptions]="{ paths: 'subset', queryParams: 'ignored', fragment: 'ignored', matrixParams: 'ignored' }"
+    >
+      <svg lucideFolderOpen [size]="20" aria-hidden="true"></svg>
+      <span>Packs</span>
+    </a>
+    <a
+      routerLink="/setlists"
+      routerLinkActive="library-nav__link--active"
+      class="library-nav__link"
+      [routerLinkActiveOptions]="{ paths: 'subset', queryParams: 'ignored', fragment: 'ignored', matrixParams: 'ignored' }"
+    >
+      <svg lucideListMusic [size]="20" aria-hidden="true"></svg>
+      <span>Setlists</span>
+    </a>
+  </nav>
+</div>

@@ -7,29 +7,18 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 
-import type { Project, Setlist } from '../../../../core/models';
-import {
-  reorderSetlistEntriesInPlace,
-  sortSetlistEntriesByOrder,
-} from '../../../../core/utils/setlist-order.util';
+import type { Project } from '../../../../core/models';
 import { sortTracksByOrder } from '../../../../core/utils/track-order.util';
 import {
   LucideCheck,
-  LucideGripVertical,
   LucideList,
   LucidePencil,
-  LucidePlay,
-  LucidePlus,
   LucideTrash2,
   LucideUpload,
   LucideX,
 } from '../../../../shared/icons/app-lucide-icons';
-import type { PackPreloadStatus } from '../../../setlists/services/setlist-preload.service';
-import { SetlistPreloadService } from '../../../setlists/services/setlist-preload.service';
-import { SetlistStorageService } from '../../../setlists/services/setlist-storage.service';
 import { ProjectImportService } from '../../services/project-import.service';
 import { ProjectStorageService } from '../../services/project-storage.service';
 
@@ -38,16 +27,12 @@ import { ProjectStorageService } from '../../services/project-storage.service';
   standalone: true,
   imports: [
     RouterLink,
-    DragDropModule,
     LucideList,
     LucidePencil,
     LucideTrash2,
     LucideUpload,
     LucideCheck,
     LucideX,
-    LucidePlus,
-    LucidePlay,
-    LucideGripVertical,
   ],
   templateUrl: './projects-page.component.html',
   styleUrl: './projects-page.component.scss',
@@ -56,16 +41,10 @@ import { ProjectStorageService } from '../../services/project-storage.service';
 export class ProjectsPageComponent {
   private readonly storage = inject(ProjectStorageService);
   private readonly importService = inject(ProjectImportService);
-  private readonly setlistStorage = inject(SetlistStorageService);
-  readonly setlistPreload = inject(SetlistPreloadService);
-  private readonly router = inject(Router);
 
   readonly projects = signal<readonly Project[]>([]);
-  readonly setlists = signal<readonly Setlist[]>([]);
   readonly listLoading = signal(true);
-  readonly setlistsLoading = signal(true);
   readonly listError = signal<string | null>(null);
-  readonly setlistsError = signal<string | null>(null);
 
   readonly newProjectName = signal('');
   readonly selectedFiles = signal<File[]>([]);
@@ -108,26 +87,11 @@ export class ProjectsPageComponent {
     }
   });
 
-  readonly newSetlistName = signal('');
-  readonly setlistCreateError = signal<string | null>(null);
-  readonly isCreatingSetlist = signal(false);
-  readonly editingSetlistId = signal<string | null>(null);
-  readonly setlistRenameId = signal<string | null>(null);
-  readonly setlistRenameDraft = signal('');
-  readonly setlistRenameError = signal<string | null>(null);
-  readonly setlistEditorError = signal<string | null>(null);
-  readonly setlistEditorBusy = signal(false);
-  readonly setlistPreloadingId = signal<string | null>(null);
-  readonly addPackToSetlistId = signal('');
-
-  readonly setlistPreloadProgress = this.setlistPreload.setlistPreloadProgress;
-
   private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   private readonly addTracksInput = viewChild<ElementRef<HTMLInputElement>>('addTracksInput');
 
   constructor() {
     void this.refreshProjects();
-    void this.refreshSetlists();
   }
 
   async refreshProjects(): Promise<void> {
@@ -202,277 +166,7 @@ export class ProjectsPageComponent {
   }
 
   pageBusy(): boolean {
-    return (
-      this.isCreating() ||
-      this.tracksBusy() ||
-      this.isCreatingSetlist() ||
-      this.setlistEditorBusy() ||
-      this.setlistPreloadingId() !== null
-    );
-  }
-
-  async refreshSetlists(): Promise<void> {
-    this.setlistsLoading.set(true);
-    this.setlistsError.set(null);
-    try {
-      const list = await this.setlistStorage.listSetlists();
-      this.setlists.set(list);
-      for (const setlist of list) {
-        for (const entry of setlist.entries) {
-          this.setlistPreload.refreshStatusForPack(entry.packId);
-        }
-      }
-    } catch (e) {
-      this.setlistsError.set(e instanceof Error ? e.message : String(e));
-    } finally {
-      this.setlistsLoading.set(false);
-    }
-  }
-
-  packName(packId: string): string {
-    return this.projects().find((p) => p.id === packId)?.name ?? 'Pack eliminado';
-  }
-
-  preloadStatusLabel(packId: string): string {
-    const map: Record<PackPreloadStatus, string> = {
-      pending: 'Pendiente',
-      loading: 'Precargando…',
-      ready: 'Listo',
-      error: 'Error',
-    };
-    return map[this.setlistPreload.getStatus(packId)];
-  }
-
-  setlistEntryCount(setlist: Setlist): number {
-    return setlist.entries.length;
-  }
-
-  sortedSetlistEntries(setlist: Setlist) {
-    return sortSetlistEntriesByOrder(setlist.entries);
-  }
-
-  packsAvailableToAdd(setlist: Setlist): Project[] {
-    const used = new Set(setlist.entries.map((e) => e.packId));
-    return this.projects().filter((p) => !used.has(p.id));
-  }
-
-  onNewSetlistNameInput(ev: Event): void {
-    this.newSetlistName.set((ev.target as HTMLInputElement).value);
-    this.setlistCreateError.set(null);
-  }
-
-  async onCreateSetlist(): Promise<void> {
-    const name = this.newSetlistName().trim();
-    if (!name || this.pageBusy()) {
-      return;
-    }
-    this.setlistCreateError.set(null);
-    this.isCreatingSetlist.set(true);
-    try {
-      await this.setlistStorage.createSetlist(name);
-      this.newSetlistName.set('');
-      await this.refreshSetlists();
-    } catch (e) {
-      this.setlistCreateError.set(e instanceof Error ? e.message : String(e));
-    } finally {
-      this.isCreatingSetlist.set(false);
-    }
-  }
-
-  startEditSetlist(setlist: Setlist): void {
-    if (this.pageBusy()) {
-      return;
-    }
-    this.cancelSetlistRename();
-    this.cancelEditTracks();
-    this.cancelRename();
-    this.setlistEditorError.set(null);
-    this.addPackToSetlistId.set('');
-    this.editingSetlistId.set(setlist.id);
-  }
-
-  cancelEditSetlist(): void {
-    this.editingSetlistId.set(null);
-    this.setlistEditorError.set(null);
-    this.addPackToSetlistId.set('');
-  }
-
-  editingSetlist(): Setlist | null {
-    const id = this.editingSetlistId();
-    if (!id) {
-      return null;
-    }
-    return this.setlists().find((s) => s.id === id) ?? null;
-  }
-
-  onAddPackSelect(ev: Event): void {
-    this.addPackToSetlistId.set((ev.target as HTMLSelectElement).value);
-  }
-
-  async onAddPackToSetlist(setlistId: string): Promise<void> {
-    const packId = this.addPackToSetlistId();
-    if (!packId || this.pageBusy()) {
-      return;
-    }
-    const setlist = this.setlists().find((s) => s.id === setlistId);
-    if (!setlist) {
-      return;
-    }
-    this.setlistEditorBusy.set(true);
-    this.setlistEditorError.set(null);
-    try {
-      const entries = sortSetlistEntriesByOrder(setlist.entries);
-      entries.push({
-        id: crypto.randomUUID(),
-        packId,
-        order: entries.length,
-      });
-      const updated = await this.setlistStorage.saveSetlistEntries(setlistId, entries);
-      this.setlists.update((list) => list.map((s) => (s.id === updated.id ? updated : s)));
-      this.addPackToSetlistId.set('');
-      this.setlistPreload.refreshStatusForPack(packId);
-    } catch (e) {
-      this.setlistEditorError.set(e instanceof Error ? e.message : String(e));
-    } finally {
-      this.setlistEditorBusy.set(false);
-    }
-  }
-
-  async onRemoveSetlistEntry(setlistId: string, entryId: string): Promise<void> {
-    if (this.pageBusy()) {
-      return;
-    }
-    const setlist = this.setlists().find((s) => s.id === setlistId);
-    if (!setlist) {
-      return;
-    }
-    this.setlistEditorBusy.set(true);
-    this.setlistEditorError.set(null);
-    try {
-      const entries = setlist.entries.filter((e) => e.id !== entryId);
-      entries.forEach((e, i) => {
-        e.order = i;
-      });
-      const updated = await this.setlistStorage.saveSetlistEntries(setlistId, entries);
-      this.setlists.update((list) => list.map((s) => (s.id === updated.id ? updated : s)));
-    } catch (e) {
-      this.setlistEditorError.set(e instanceof Error ? e.message : String(e));
-    } finally {
-      this.setlistEditorBusy.set(false);
-    }
-  }
-
-  async onSetlistEntryDrop(setlistId: string, event: CdkDragDrop<unknown>): Promise<void> {
-    if (event.previousIndex === event.currentIndex || this.pageBusy()) {
-      return;
-    }
-    const setlist = this.setlists().find((s) => s.id === setlistId);
-    if (!setlist) {
-      return;
-    }
-    const entries = sortSetlistEntriesByOrder(setlist.entries).map((e) => ({ ...e }));
-    reorderSetlistEntriesInPlace(entries, event.previousIndex, event.currentIndex);
-    this.setlistEditorBusy.set(true);
-    this.setlistEditorError.set(null);
-    try {
-      const updated = await this.setlistStorage.saveSetlistEntries(setlistId, entries);
-      this.setlists.update((list) => list.map((s) => (s.id === updated.id ? updated : s)));
-    } catch (e) {
-      this.setlistEditorError.set(e instanceof Error ? e.message : String(e));
-    } finally {
-      this.setlistEditorBusy.set(false);
-    }
-  }
-
-  async onPreloadSetlist(setlist: Setlist): Promise<void> {
-    if (this.pageBusy() || setlist.entries.length === 0) {
-      return;
-    }
-    this.setlistPreloadingId.set(setlist.id);
-    try {
-      await this.setlistPreload.warmSetlist(setlist);
-      await this.refreshSetlists();
-      this.setlistPreload.setlistPreloadProgress.set({
-        loaded: setlist.entries.length,
-        total: setlist.entries.length,
-        label: 'Setlist listo para el show',
-      });
-      window.setTimeout(() => this.setlistPreload.clearSetlistPreloadProgress(), 4000);
-    } finally {
-      this.setlistPreloadingId.set(null);
-    }
-  }
-
-  onPlaySetlist(setlist: Setlist): void {
-    const entries = sortSetlistEntriesByOrder(setlist.entries);
-    const first = entries[0];
-    if (!first) {
-      return;
-    }
-    void this.router.navigate(['/player', first.packId], {
-      queryParams: { setlist: setlist.id, entry: 0 },
-    });
-  }
-
-  startSetlistRename(setlist: Setlist): void {
-    if (this.pageBusy()) {
-      return;
-    }
-    this.cancelEditSetlist();
-    this.setlistRenameError.set(null);
-    this.setlistRenameId.set(setlist.id);
-    this.setlistRenameDraft.set(setlist.name);
-  }
-
-  cancelSetlistRename(): void {
-    this.setlistRenameId.set(null);
-    this.setlistRenameDraft.set('');
-    this.setlistRenameError.set(null);
-  }
-
-  onSetlistRenameDraftInput(ev: Event): void {
-    this.setlistRenameDraft.set((ev.target as HTMLInputElement).value);
-    this.setlistRenameError.set(null);
-  }
-
-  async confirmSetlistRename(setlistId: string): Promise<void> {
-    const name = this.setlistRenameDraft().trim();
-    if (!name) {
-      this.setlistRenameError.set('El nombre no puede estar vacío.');
-      return;
-    }
-    if (this.pageBusy()) {
-      return;
-    }
-    try {
-      await this.setlistStorage.renameSetlist(setlistId, name);
-      this.cancelSetlistRename();
-      await this.refreshSetlists();
-    } catch (e) {
-      this.setlistRenameError.set(e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  async onDeleteSetlist(setlist: Setlist): Promise<void> {
-    if (this.pageBusy()) {
-      return;
-    }
-    const ok = window.confirm(`¿Eliminar el setlist «${setlist.name}»?`);
-    if (!ok) {
-      return;
-    }
-    try {
-      await this.setlistStorage.deleteSetlist(setlist.id);
-      if (this.editingSetlistId() === setlist.id) {
-        this.cancelEditSetlist();
-      }
-      if (this.setlistRenameId() === setlist.id) {
-        this.cancelSetlistRename();
-      }
-      await this.refreshSetlists();
-    } catch (e) {
-      this.setlistsError.set(e instanceof Error ? e.message : String(e));
-    }
+    return this.isCreating() || this.tracksBusy();
   }
 
   startEditTracks(project: Project): void {
@@ -481,7 +175,6 @@ export class ProjectsPageComponent {
     }
     this.tracksError.set(null);
     this.cancelRename();
-    this.cancelEditSetlist();
     this.editingTracksId.set(project.id);
   }
 
@@ -561,7 +254,6 @@ export class ProjectsPageComponent {
     }
     this.renameError.set(null);
     this.cancelEditTracks();
-    this.cancelEditSetlist();
     this.renamingId.set(project.id);
     this.renameDraft.set(project.name);
   }

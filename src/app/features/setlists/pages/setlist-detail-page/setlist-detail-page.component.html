@@ -1,0 +1,123 @@
+<div class="library-page">
+  <header class="detail-header">
+    <a routerLink="/setlists" class="icon-link" aria-label="Volver a setlists">
+      <svg lucideArrowLeft [size]="20"></svg>
+    </a>
+    <div class="detail-header__text">
+      <h1 class="library-page__title">{{ setlist()?.name ?? 'Setlist' }}</h1>
+      @if (setlist(); as sl) {
+        <p class="library-page__tag">{{ sortedEntries(sl).length }} pack(s)</p>
+      }
+    </div>
+  </header>
+
+  <main id="main-content" class="library-page__main" tabindex="-1">
+    @if (pageError(); as err) {
+      <div class="banner banner--error" role="alert">{{ err }}</div>
+    }
+
+    @if (pageLoading()) {
+      <p class="loading-hint loading-hint--pulse list-status" role="status">Cargando…</p>
+    } @else if (setlist(); as sl) {
+      @if (editorError(); as eErr) {
+        <div class="banner banner--error banner--compact" role="alert">{{ eErr }}</div>
+      }
+
+      @if (setlistPreloadProgress(); as pp) {
+        <p class="loading-hint loading-hint--pulse list-status" role="status">
+          {{ pp.label }} ({{ pp.loaded }}/{{ pp.total }})
+        </p>
+      }
+
+      <div class="detail-actions">
+        <button
+          type="button"
+          class="btn btn--primary btn--icon"
+          [disabled]="pageBusy() || sl.entries.length === 0"
+          (click)="onPlay()"
+        >
+          <svg lucidePlay [size]="16" aria-hidden="true"></svg>
+          <span>Iniciar</span>
+        </button>
+        <button
+          type="button"
+          class="btn btn--ghost"
+          [disabled]="pageBusy() || sl.entries.length === 0"
+          [attr.aria-busy]="preloading()"
+          (click)="onPreload()"
+        >
+          {{ preloading() ? 'Precargando…' : 'Precargar' }}
+        </button>
+      </div>
+
+      <section class="setlist-editor" [attr.aria-busy]="editorBusy()" aria-label="Orden del setlist">
+        <ul
+          class="setlist-entries"
+          cdkDropList
+          (cdkDropListDropped)="onEntryDrop(sl.id, $event)"
+        >
+          @for (entry of sortedEntries(sl); track entry.id; let i = $index) {
+            <li class="setlist-entry" cdkDrag [cdkDragDisabled]="editorBusy()">
+              <span class="setlist-entry__handle" cdkDragHandle aria-hidden="true">
+                <svg lucideGripVertical [size]="16"></svg>
+              </span>
+              <span class="setlist-entry__index">{{ i + 1 }}</span>
+              <a
+                class="setlist-entry__link"
+                [routerLink]="['/player', entry.packId]"
+                [queryParams]="{ setlist: sl.id, entry: i }"
+              >
+                {{ packName(entry.packId) }}
+              </a>
+              <span
+                class="setlist-entry__status"
+                [attr.data-status]="setlistPreload.getStatus(entry.packId)"
+              >
+                {{ preloadStatusLabel(entry.packId) }}
+              </span>
+              <button
+                type="button"
+                class="btn btn--small btn--danger btn--icon btn--icon-only"
+                [disabled]="editorBusy()"
+                [attr.aria-label]="'Quitar ' + packName(entry.packId)"
+                (click)="onRemoveEntry(sl.id, entry.id)"
+              >
+                <svg lucideTrash2 [size]="14"></svg>
+              </button>
+            </li>
+          } @empty {
+            <li class="setlist-entry setlist-entry--empty">Añade packs al setlist.</li>
+          }
+        </ul>
+
+        @if (packsAvailableToAdd(sl).length > 0) {
+          <div class="setlist-editor__add">
+            <select
+              class="field-input field-input--compact"
+              [value]="addPackId()"
+              (change)="onAddPackSelect($event)"
+              [disabled]="editorBusy()"
+            >
+              <option value="">Elegir pack…</option>
+              @for (pack of packsAvailableToAdd(sl); track pack.id) {
+                <option [value]="pack.id">{{ pack.name }}</option>
+              }
+            </select>
+            <button
+              type="button"
+              class="btn btn--small btn--primary"
+              [disabled]="editorBusy() || !addPackId()"
+              (click)="onAddPack(sl.id)"
+            >
+              Añadir
+            </button>
+          </div>
+        } @else if (projects().length === 0) {
+          <p class="editor-hint">
+            No hay packs. <a routerLink="/packs">Crea un pack</a> antes de armar el setlist.
+          </p>
+        }
+      </section>
+    }
+  </main>
+</div>
