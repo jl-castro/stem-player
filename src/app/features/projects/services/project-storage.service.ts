@@ -134,6 +134,26 @@ export class ProjectStorageService implements ProjectStoragePort {
     if (!row || row.contentHash !== contentHash) {
       return null;
     }
+    return this.rowToDecodedPcm(row);
+  }
+
+  /**
+   * PCM en caché si existe y coincide con el hash del asset (si está registrado).
+   * Evita leer el blob original cuando el PCM ya está listo.
+   */
+  async getDecodedCacheIfValid(assetKey: string): Promise<DecodedPcm | null> {
+    const row = await this.db.decodedCaches.get(assetKey);
+    if (!row) {
+      return null;
+    }
+    const assetHash = await this.getTrackAssetContentHash(assetKey);
+    if (assetHash && assetHash !== row.contentHash) {
+      return null;
+    }
+    return this.rowToDecodedPcm(row);
+  }
+
+  private rowToDecodedPcm(row: DecodedCacheRow): DecodedPcm {
     return {
       sampleRate: row.sampleRate,
       length: row.length,

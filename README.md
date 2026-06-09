@@ -14,7 +14,7 @@ La aplicación funciona completamente en el cliente: no requiere backend, autent
 - Listar, renombrar y eliminar packs guardados.
 - Reproducir stems sincronizados mediante Web Audio.
 - Decodificar audio en un Web Worker, con fallback al hilo principal si el navegador no lo permite.
-- Guardar PCM decodificado en IndexedDB y mantener hasta dos packs en caché de memoria durante la sesión.
+- Guardar PCM decodificado en IndexedDB y mantener packs recientes en caché de memoria (LRU según RAM del dispositivo) durante la sesión.
 - Activar Modo en vivo: deshabilita el seek y exige que todas las pistas con archivo estén cargadas.
 - Recuperar el audio cuando el navegador suspende el `AudioContext`.
 - Controlar reproducción, pausa, detención, reinicio y posición.
@@ -61,7 +61,7 @@ La base utiliza tres tablas:
 
 Los datos pertenecen al navegador, dispositivo y origen web donde se importaron. Por ejemplo, los packs creados en `http://localhost:4200` no aparecen automáticamente en el dominio desplegado en Cloudflare. Borrar los datos del sitio, usar navegación privada o cambiar de navegador puede hacer que dejen de estar disponibles.
 
-La caché PCM de IndexedDB se valida con el hash del archivo. Además, los `AudioBuffer` de hasta dos packs se conservan temporalmente en memoria para acelerar el regreso a packs abiertos durante la misma pestaña. Esta caché se invalida al agregar o quitar pistas.
+La caché PCM de IndexedDB se valida con el hash del archivo. Además, los `AudioBuffer` de packs recientes se conservan temporalmente en memoria (evicción LRU según RAM del dispositivo) para acelerar el regreso a packs abiertos durante la misma pestaña. Esta caché se invalida al agregar o quitar pistas.
 
 La preferencia de Modo en vivo se guarda en `sessionStorage`: se mantiene durante la pestaña actual, pero no es una configuración permanente del pack.
 

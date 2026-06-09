@@ -52,3 +52,17 @@ export function getRamBlockThresholdBytes(): number {
   if (dm <= 8) return 900 * 1024 * 1024;   // gama alta (8 GB)
   return 1_200 * 1024 * 1024;              // escritorio con mucha RAM
 }
+
+/** Presupuesto de RAM para la caché de sesión (AudioBuffer en memoria). */
+export function getSessionCacheBudgetBytes(): number {
+  return Math.floor(getRamBlockThresholdBytes() * 0.45);
+}
+
+/** Estima bytes de `AudioBuffer` decodificados (float32 por canal). */
+export function estimateAudioBuffersRamBytes(buffers: ReadonlyMap<string, AudioBuffer>): number {
+  let total = 0;
+  for (const buffer of buffers.values()) {
+    total += buffer.length * buffer.numberOfChannels * BYTES_PER_SAMPLE;
+  }
+  return total;
+}

@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 
 import type { PlayerPlaybackPort } from '../../../core/contracts';
-import type { Project, StemPanMode } from '../../../core/models';
+import type { Project, StemPanMode, StemTrack } from '../../../core/models';
 import { createInitialPlayerState, type PlayerState } from '../../../core/models';
 import { AudioDecodeService } from '../../../core/services/audio-decode.service';
 import { AudioEngineService } from '../../../core/services/audio-engine.service';
@@ -9,6 +9,7 @@ import {
   AudioSessionCacheService,
   buildAssetKeysFingerprint,
 } from '../../../core/services/audio-session-cache.service';
+import { mapWithConcurrency } from '../../../core/utils/async-pool';
 import { sha256HexFromBlob } from '../../../core/utils/blob-hash';
 import {
   recalculateTrackOrders,
@@ -19,6 +20,11 @@ import { ProjectStorageService } from '../../projects/services/project-storage.s
 
 const LIVE_MODE_KEY = 'stem-player-live-mode';
 const MIX_SAVE_DEBOUNCE_MS = 450;
+const TRACK_LOAD_CONCURRENCY = 4;
+
+type LoadTrackResult =
+  | { ok: true; trackId: string; buffer: AudioBuffer; durationMs: number }
+  | { ok: false; issue: string };
 
 function cloneProject(p: Readonly<Project>): Project {
   return {
@@ -86,13 +92,13 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
     const sessionBuffers = this.sessionCache.get(project.id, fingerprint);
 
     if (!sameProject) {
-      this.engine.reset();
       this.loadedProjectId = null;
       this.project = null;
       this.loadedStemIds.clear();
-    } else {
-      this.engine.unmountStems();
     }
+
+    this.engine.haltPlayback();
+    this.engine.unmountStems();
 
     this.loadedProject.set(null);
     this.loadSummary.set(null);
@@ -150,52 +156,35 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
 
     const missingFromSession = toLoad.filter((t) => !buffers.has(t.id));
     if (missingFromSession.length > 0) {
-      await this.engine.ensureAudioContext();
+      const sessionLoaded = buffers.size;
+      this.loadProgress.set({ loaded: sessionLoaded, total, label: 'Cargando pistas…' });
 
-      for (const track of missingFromSession) {
-        const key = track.storedAssetKey!;
-        loaded = buffers.size;
-        this.loadProgress.set({
-          loaded,
-          total,
-          label: `Decodificando ${track.displayName}…`,
-        });
+      let completed = 0;
+      const results = await mapWithConcurrency(
+        missingFromSession,
+        TRACK_LOAD_CONCURRENCY,
+        async (track) => {
+          const result = await this.loadTrackBuffer(track);
+          completed += 1;
+          this.loadProgress.set({
+            loaded: sessionLoaded + completed,
+            total,
+            label: 'Cargando pistas…',
+          });
+          return result;
+        },
+      );
 
-        let blob: Blob | null;
-        try {
-          blob = await this.storage.getTrackAssetBlob(key);
-        } catch (e) {
-          issues.push(`${track.displayName}: ${e instanceof Error ? e.message : String(e)}`);
+      for (const result of results) {
+        if (!result.ok) {
+          issues.push(result.issue);
           continue;
         }
-        if (!blob) {
-          issues.push(`${track.displayName}: archivo no encontrado en IndexedDB`);
-          continue;
+        buffers.set(result.trackId, result.buffer);
+        const trackMeta = copy.tracks.find((t) => t.id === result.trackId);
+        if (trackMeta) {
+          trackMeta.durationMs = result.durationMs;
         }
-
-        let contentHash = await this.storage.getTrackAssetContentHash(key);
-        if (!contentHash) {
-          contentHash = await sha256HexFromBlob(blob);
-        }
-
-        try {
-          let pcm = await this.storage.getDecodedCache(key, contentHash);
-          if (!pcm) {
-            pcm = await this.decode.decodeBlobToPcm(blob);
-            await this.storage.saveDecodedCache(key, contentHash, pcm);
-          }
-          const buffer = this.decode.pcmToAudioBuffer(this.engine.getContext(), pcm);
-          buffers.set(track.id, buffer);
-          track.durationMs = pcm.durationMs;
-        } catch {
-          issues.push(`${track.displayName}: decodificación fallida`);
-        }
-
-        this.loadProgress.set({
-          loaded: buffers.size,
-          total,
-          label: `Decodificando ${track.displayName}…`,
-        });
       }
     }
 
@@ -212,7 +201,7 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
           `No se encontraron los archivos de audio en el almacén local del navegador. Puede que se hayan borrado los datos del sitio o el pack esté corrupto.${detail}`,
         );
       } else {
-        fail(`No se pudo preparar ningún stem para reproducir.${detail}`);
+        fail(`No se pudo preparar ninguna pista para reproducir.${detail}`);
       }
       return;
     }
@@ -502,7 +491,50 @@ export class PlayerPlaybackService implements PlayerPlaybackPort {
   /** Libera el motor al salir de la app; mantiene caché de buffers en sesión. */
   detachFromPlayer(): void {
     this.stopRafLoop();
+    this.engine.haltPlayback();
     this.engine.unmountStems();
+  }
+
+  private async loadTrackBuffer(track: StemTrack): Promise<LoadTrackResult> {
+    const key = track.storedAssetKey!;
+
+    try {
+      let pcm = await this.storage.getDecodedCacheIfValid(key);
+
+      if (!pcm) {
+        let blob: Blob | null;
+        try {
+          blob = await this.storage.getTrackAssetBlob(key);
+        } catch (e) {
+          return {
+            ok: false,
+            issue: `${track.displayName}: ${e instanceof Error ? e.message : String(e)}`,
+          };
+        }
+        if (!blob) {
+          return {
+            ok: false,
+            issue: `${track.displayName}: archivo no encontrado en IndexedDB`,
+          };
+        }
+
+        let contentHash = await this.storage.getTrackAssetContentHash(key);
+        if (!contentHash) {
+          contentHash = await sha256HexFromBlob(blob);
+        }
+
+        pcm = await this.storage.getDecodedCache(key, contentHash);
+        if (!pcm) {
+          pcm = await this.decode.decodeBlobToPcm(blob);
+          await this.storage.saveDecodedCache(key, contentHash, pcm);
+        }
+      }
+
+      const buffer = this.decode.pcmToAudioBuffer(this.engine.getContext(), pcm);
+      return { ok: true, trackId: track.id, buffer, durationMs: pcm.durationMs };
+    } catch {
+      return { ok: false, issue: `${track.displayName}: decodificación fallida` };
+    }
   }
 
   private readLiveModePreference(): boolean {

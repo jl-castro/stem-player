@@ -1,5 +1,12 @@
 import type { StemTrack } from '../models';
-import { estimateDecodedRamBytes, formatBytes, getRamBlockThresholdBytes, RAM_BLOCK_BYTES } from './audio-memory';
+import {
+  estimateAudioBuffersRamBytes,
+  estimateDecodedRamBytes,
+  formatBytes,
+  getRamBlockThresholdBytes,
+  getSessionCacheBudgetBytes,
+  RAM_BLOCK_BYTES,
+} from './audio-memory';
 
 describe('audio-memory', () => {
   it('estimateDecodedRamBytes sums track durations', () => {
@@ -35,5 +42,19 @@ describe('audio-memory', () => {
     expect(RAM_BLOCK_BYTES).toBeGreaterThan(0);
     // En entorno de tests (sin deviceMemory disponible) cae en el valor base.
     expect(getRamBlockThresholdBytes()).toBeGreaterThan(0);
+    expect(getSessionCacheBudgetBytes()).toBeLessThan(getRamBlockThresholdBytes());
+  });
+
+  it('estimateAudioBuffersRamBytes sums buffer sizes', () => {
+    const buffers = new Map<string, AudioBuffer>([
+      [
+        'a',
+        {
+          length: 48_000,
+          numberOfChannels: 2,
+        } as AudioBuffer,
+      ],
+    ]);
+    expect(estimateAudioBuffersRamBytes(buffers)).toBe(48_000 * 2 * 4);
   });
 });

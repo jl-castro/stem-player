@@ -1,42 +1,91 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable, InjectionToken } from '@angular/core';
 
-/** Buffers decodificados en RAM para no recargar al volver al mismo proyecto en la misma pestaña. */
+import {
+  estimateAudioBuffersRamBytes,
+  getSessionCacheBudgetBytes,
+} from '../utils/audio-memory';
+
+/** Presupuesto de RAM para la caché de sesión; sobreescribible en tests. */
+export const AUDIO_SESSION_CACHE_BUDGET_BYTES = new InjectionToken<number>(
+  'AUDIO_SESSION_CACHE_BUDGET_BYTES',
+  {
+    providedIn: 'root',
+    factory: () => getSessionCacheBudgetBytes(),
+  },
+);
+
+/** Buffers decodificados en RAM para no recargar al volver al mismo pack en la misma pestaña. */
 export interface SessionProjectAudio {
   projectId: string;
   assetKeysFingerprint: string;
   buffers: Map<string, AudioBuffer>;
+  estimatedBytes: number;
 }
-
-const MAX_CACHED_PROJECTS = 2;
 
 @Injectable({ providedIn: 'root' })
 export class AudioSessionCacheService {
+  /** LRU: la entrada más antigua está al inicio del Map. */
   private readonly entries = new Map<string, SessionProjectAudio>();
+  private cachedBytes = 0;
+  private readonly budgetBytes = inject(AUDIO_SESSION_CACHE_BUDGET_BYTES);
 
   get(projectId: string, assetKeysFingerprint: string): Map<string, AudioBuffer> | null {
     const entry = this.entries.get(projectId);
     if (!entry || entry.assetKeysFingerprint !== assetKeysFingerprint) {
       return null;
     }
+    this.touchEntry(projectId, entry);
     return entry.buffers;
   }
 
   set(projectId: string, assetKeysFingerprint: string, buffers: Map<string, AudioBuffer>): void {
-    if (!this.entries.has(projectId) && this.entries.size >= MAX_CACHED_PROJECTS) {
-      const oldest = this.entries.keys().next().value;
-      if (oldest) {
-        this.entries.delete(oldest);
-      }
+    const estimatedBytes = estimateAudioBuffersRamBytes(buffers);
+    this.removeEntry(projectId);
+
+    while (
+      this.cachedBytes + estimatedBytes > this.budgetBytes &&
+      this.entries.size > 0
+    ) {
+      this.evictOldest();
     }
-    this.entries.set(projectId, { projectId, assetKeysFingerprint, buffers });
+
+    this.entries.set(projectId, {
+      projectId,
+      assetKeysFingerprint,
+      buffers,
+      estimatedBytes,
+    });
+    this.cachedBytes += estimatedBytes;
   }
 
   clear(): void {
     this.entries.clear();
+    this.cachedBytes = 0;
   }
 
   clearIfProject(projectId: string): void {
+    this.removeEntry(projectId);
+  }
+
+  private touchEntry(projectId: string, entry: SessionProjectAudio): void {
     this.entries.delete(projectId);
+    this.entries.set(projectId, entry);
+  }
+
+  private removeEntry(projectId: string): void {
+    const existing = this.entries.get(projectId);
+    if (!existing) {
+      return;
+    }
+    this.entries.delete(projectId);
+    this.cachedBytes -= existing.estimatedBytes;
+  }
+
+  private evictOldest(): void {
+    const oldest = this.entries.keys().next().value;
+    if (oldest) {
+      this.removeEntry(oldest);
+    }
   }
 }
 
