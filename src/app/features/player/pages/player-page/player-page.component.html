@@ -73,20 +73,6 @@
       </div>
     }
 
-    @if (showPackFinishedBanner()) {
-      <div class="banner banner--info pack-finished-banner" role="status">
-        <span>{{ packFinishedBannerText() }}</span>
-        <button
-          type="button"
-          class="btn btn--primary btn--inline"
-          [disabled]="nextPackDisabled()"
-          (click)="goToNextPack()"
-        >
-          Siguiente pack
-        </button>
-      </div>
-    }
-
     @if (playback.loadSummary(); as hint) {
       <div class="banner banner--info" role="status">{{ hint }}</div>
     }

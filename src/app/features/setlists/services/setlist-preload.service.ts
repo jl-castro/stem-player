@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 
 import type { Setlist } from '../../../core/models';
+import { AudioSessionCacheService } from '../../../core/services/audio-session-cache.service';
 import { sortSetlistEntriesByOrder } from '../../../core/utils/setlist-order.util';
 import { ProjectStorageService } from '../../projects/services/project-storage.service';
 import { PlayerPlaybackService } from '../../player/services/player-playback.service';
@@ -13,10 +14,16 @@ export interface SetlistPreloadProgress {
   label: string;
 }
 
+export interface WarmSetlistResult {
+  readyCount: number;
+  total: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SetlistPreloadService {
   private readonly storage = inject(ProjectStorageService);
   private readonly playback = inject(PlayerPlaybackService);
+  private readonly sessionCache = inject(AudioSessionCacheService);
 
   readonly statusByPackId = signal<ReadonlyMap<string, PackPreloadStatus>>(new Map());
   readonly setlistPreloadProgress = signal<SetlistPreloadProgress | null>(null);
@@ -75,11 +82,14 @@ export class SetlistPreloadService {
     }
   }
 
-  async warmSetlist(setlist: Readonly<Setlist>): Promise<void> {
+  async warmSetlist(setlist: Readonly<Setlist>): Promise<WarmSetlistResult> {
     const entries = sortSetlistEntriesByOrder(setlist.entries);
     if (entries.length === 0) {
-      return;
+      return { readyCount: 0, total: 0 };
     }
+
+    const packIds = entries.map((e) => e.packId);
+    this.sessionCache.setPinnedProjectIds(packIds);
 
     const total = entries.length;
     for (let i = 0; i < entries.length; i += 1) {
@@ -91,15 +101,43 @@ export class SetlistPreloadService {
       });
       await this.warmPackById(entry.packId);
     }
+
+    const readyCount = await this.refreshAllPackStatuses(packIds);
     this.setlistPreloadProgress.set({
-      loaded: total,
+      loaded: readyCount,
       total,
-      label: 'Setlist listo',
+      label:
+        readyCount === total
+          ? 'Setlist listo'
+          : `${readyCount} de ${total} packs en memoria`,
     });
+
+    return { readyCount, total };
   }
 
   clearSetlistPreloadProgress(): void {
     this.setlistPreloadProgress.set(null);
+  }
+
+  preloadCompleteMessage(result: WarmSetlistResult): string {
+    if (result.total === 0) {
+      return '';
+    }
+    if (result.readyCount === result.total) {
+      return 'Setlist listo para el show';
+    }
+    return `${result.readyCount} de ${result.total} packs en memoria (el resto cargará al reproducir)`;
+  }
+
+  private async refreshAllPackStatuses(packIds: readonly string[]): Promise<number> {
+    let readyCount = 0;
+    for (const packId of packIds) {
+      await this.syncPackStatus(packId);
+      if (this.getStatus(packId) === 'ready') {
+        readyCount += 1;
+      }
+    }
+    return readyCount;
   }
 
   private async syncPackStatus(

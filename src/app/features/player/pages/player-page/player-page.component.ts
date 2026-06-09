@@ -265,7 +265,7 @@ export class PlayerPageComponent {
     return 'Pendiente';
   });
 
-  readonly showPackFinishedBanner = computed(() => {
+  readonly isAtPackEnd = computed(() => {
     if (!this.hasSetlistNav() || !this.hasNextPack() || this.pageLoading()) {
       return false;
     }
@@ -275,11 +275,6 @@ export class PlayerPageComponent {
     }
     const dur = st.durationMs;
     return dur > 0 && st.currentTimeMs >= dur - 500;
-  });
-
-  readonly packFinishedBannerText = computed(() => {
-    const name = this.nextEntryPackName();
-    return name ? `Pack terminado · Siguiente: ${name}` : 'Pack terminado';
   });
 
   readonly setlistNavCenterTitle = computed(() => {
@@ -452,7 +447,7 @@ export class PlayerPageComponent {
   }
 
   goToNextPack(): void {
-    const atEnd = this.showPackFinishedBanner();
+    const atEnd = this.isAtPackEnd();
     const wasPlaying = this.playback.state().status === 'playing';
     this.goToAdjacentPack(1, atEnd || wasPlaying);
   }

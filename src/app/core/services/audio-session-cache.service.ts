@@ -28,6 +28,8 @@ export class AudioSessionCacheService {
   private readonly entries = new Map<string, SessionProjectAudio>();
   private cachedBytes = 0;
   private readonly budgetBytes = inject(AUDIO_SESSION_CACHE_BUDGET_BYTES);
+  /** Packs del setlist en show: no se expulsan por LRU hasta cambiar de setlist. */
+  private pinnedProjectIds = new Set<string>();
 
   get(projectId: string, assetKeysFingerprint: string): Map<string, AudioBuffer> | null {
     const entry = this.entries.get(projectId);
@@ -46,7 +48,11 @@ export class AudioSessionCacheService {
       this.cachedBytes + estimatedBytes > this.budgetBytes &&
       this.entries.size > 0
     ) {
+      const sizeBefore = this.entries.size;
       this.evictOldest();
+      if (this.entries.size === sizeBefore) {
+        break;
+      }
     }
 
     this.entries.set(projectId, {
@@ -67,6 +73,19 @@ export class AudioSessionCacheService {
     this.removeEntry(projectId);
   }
 
+  /** Fija packs de un setlist para que Precargar no expulse el primero al cargar el segundo. */
+  setPinnedProjectIds(projectIds: readonly string[]): void {
+    this.pinnedProjectIds = new Set(projectIds);
+  }
+
+  clearPinnedProjectIds(): void {
+    this.pinnedProjectIds.clear();
+  }
+
+  isPinned(projectId: string): boolean {
+    return this.pinnedProjectIds.has(projectId);
+  }
+
   private touchEntry(projectId: string, entry: SessionProjectAudio): void {
     this.entries.delete(projectId);
     this.entries.set(projectId, entry);
@@ -82,9 +101,12 @@ export class AudioSessionCacheService {
   }
 
   private evictOldest(): void {
-    const oldest = this.entries.keys().next().value;
-    if (oldest) {
-      this.removeEntry(oldest);
+    for (const projectId of this.entries.keys()) {
+      if (this.pinnedProjectIds.has(projectId)) {
+        continue;
+      }
+      this.removeEntry(projectId);
+      return;
     }
   }
 }

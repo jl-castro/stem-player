@@ -808,14 +808,6 @@
   flex-shrink: 0;
 }
 
-.pack-finished-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-space-sm);
-}
-
 .setlist-context,
 .setlist-nav-label {
   margin: 0;

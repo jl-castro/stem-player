@@ -208,14 +208,11 @@ export class SetlistDetailPageComponent {
     }
     this.preloading.set(true);
     try {
-      await this.setlistPreload.warmSetlist(current);
-      for (const entry of current.entries) {
-        this.setlistPreload.refreshStatusForPack(entry.packId);
-      }
+      const result = await this.setlistPreload.warmSetlist(current);
       this.setlistPreload.setlistPreloadProgress.set({
-        loaded: current.entries.length,
-        total: current.entries.length,
-        label: 'Setlist listo para el show',
+        loaded: result.readyCount,
+        total: result.total,
+        label: this.setlistPreload.preloadCompleteMessage(result),
       });
       window.setTimeout(() => this.setlistPreload.clearSetlistPreloadProgress(), 4000);
     } finally {

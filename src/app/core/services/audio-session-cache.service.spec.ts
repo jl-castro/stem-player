@@ -82,4 +82,16 @@ describe('AudioSessionCacheService', () => {
     expect(cache.get('p1', 'fp-1')).toBeNull();
     expect(cache.get('p2', 'fp-2')?.size).toBe(1);
   });
+
+  it('does not evict pinned packs when over budget', () => {
+    const huge = mockAudioBuffer(13_100_000);
+    const small = mockAudioBuffer(100_000);
+
+    cache.setPinnedProjectIds(['large-a']);
+    cache.set('large-a', 'fp-a', new Map([['t1', huge]]));
+    cache.set('small-b', 'fp-b', new Map([['t1', small]]));
+
+    expect(cache.get('large-a', 'fp-a')?.size).toBe(1);
+    expect(cache.get('small-b', 'fp-b')?.size).toBe(1);
+  });
 });
