@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="vitalis_bg">#EAF6FB</color>
+    <color name="vitalis_surface">#FFFFFF</color>
+    <color name="vitalis_surface_soft">#F5FBFE</color>
+    <color name="vitalis_primary">#0A7EAA</color>
+    <color name="vitalis_primary_dark">#075B7C</color>
+    <color name="vitalis_text">#18313D</color>
+    <color name="vitalis_muted">#607D8B</color>
+    <color name="vitalis_border">#CFE6F0</color>
+    <color name="vitalis_success">#2E7D32</color>
+    <color name="vitalis_success_soft">#E8F5E9</color>
+    <color name="vitalis_error">#C62828</color>
+    <color name="vitalis_error_soft">#FFEBEE</color>
+    <color name="vitalis_warning">#F9A825</color>
+    <color name="vitalis_warning_soft">#FFF8E1</color>
+    <color name="vitalis_hard">#AD1457</color>
+    <color name="vitalis_hard_soft">#FCE4EC</color>
+</resources>

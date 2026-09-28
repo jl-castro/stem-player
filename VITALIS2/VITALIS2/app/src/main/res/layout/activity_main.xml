@@ -1,0 +1,548 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_screen"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/space_lg">
+
+        <LinearLayout
+            android:id="@+id/layoutInicio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_xl"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="VITALIS"
+                android:textColor="@color/vitalis_primary_dark"
+                android:textSize="34sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_sm"
+                android:gravity="center"
+                android:text="Simulador educativo de atencion medica"
+                android:textColor="@color/vitalis_muted"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/btnJugar"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/button_height"
+                android:layout_marginTop="@dimen/space_xl"
+                android:backgroundTint="@color/vitalis_primary"
+                android:text="JUGAR"
+                android:textColor="@color/white"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnNuevaPartida"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/button_height"
+                android:layout_marginTop="@dimen/space_sm"
+                android:backgroundTint="@color/vitalis_surface_soft"
+                android:text="NUEVA PARTIDA"
+                android:textColor="@color/vitalis_primary_dark"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnComoJugar"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/button_height"
+                android:layout_marginTop="@dimen/space_sm"
+                android:backgroundTint="@color/vitalis_surface_soft"
+                android:text="COMO JUGAR"
+                android:textColor="@color/vitalis_primary_dark"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvComoJugar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:background="@drawable/bg_card_soft"
+                android:text="Analiza al paciente.\nElige un diagnostico.\nSelecciona una atencion adecuada.\nGana puntos y progresa de rango."
+                android:textColor="@color/vitalis_text"
+                android:textSize="15sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutJuego"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/layoutHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="VITALIS"
+                    android:textColor="@color/vitalis_primary_dark"
+                    android:textSize="26sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvProgreso"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Caso 1 de 15"
+                        android:textColor="@color/vitalis_muted"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvPuntos"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 pts"
+                        android:textColor="@color/vitalis_primary_dark"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <ProgressBar
+                    android:id="@+id/progressPartida"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:max="15"
+                    android:progress="1"
+                    android:progressTint="@color/vitalis_primary"
+                    android:progressBackgroundTint="@color/vitalis_border" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_lg"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvRango"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_chip"
+                        android:text="PRACTICANTE"
+                        android:textColor="@color/vitalis_primary_dark"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvSiguienteRango"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="@dimen/space_sm"
+                        android:layout_weight="1"
+                        android:text="Siguiente: INTERNO 100 pts"
+                        android:textColor="@color/vitalis_muted"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <ProgressBar
+                    android:id="@+id/progressRango"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="6dp"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/vitalis_success"
+                    android:progressBackgroundTint="@color/vitalis_border" />
+
+                <TextView
+                    android:id="@+id/tvObjetivoNivel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_lg"
+                    android:text="OBJETIVO: alcanza 180 pts para desbloquear MEDIO"
+                    android:textColor="@color/vitalis_text"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <ProgressBar
+                    android:id="@+id/progressNivel"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="7dp"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:max="180"
+                    android:progress="0"
+                    android:progressTint="@color/vitalis_warning"
+                    android:progressBackgroundTint="@color/vitalis_border" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/cardPaciente"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:id="@+id/ivPaciente"
+                    android:layout_width="190dp"
+                    android:layout_height="190dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_patient_image"
+                    android:contentDescription="Paciente"
+                    android:padding="@dimen/space_sm"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/paciente1" />
+
+                <TextView
+                    android:id="@+id/tvPacienteNombre"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_lg"
+                    android:gravity="center"
+                    android:text="Paciente"
+                    android:textColor="@color/vitalis_text"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvPacienteEdad"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="Edad"
+                    android:textColor="@color/vitalis_muted"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/tvDatosPaciente"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_md"
+                    android:gravity="center"
+                    android:text="Peso / Talla"
+                    android:textColor="@color/vitalis_text"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:background="@drawable/bg_card_soft"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="SINTOMAS"
+                    android:textColor="@color/vitalis_muted"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvSintomas"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:textColor="@color/vitalis_text"
+                    android:textSize="17sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvDificultad"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_chip"
+                    android:text="FACIL"
+                    android:textColor="@color/vitalis_success"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvTimer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="@dimen/space_sm"
+                    android:background="@drawable/bg_chip"
+                    android:text="Tiempo 40 s"
+                    android:textColor="@color/vitalis_error"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <ProgressBar
+                android:id="@+id/progressTimer"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:layout_marginTop="@dimen/space_sm"
+                android:max="40"
+                android:progress="40"
+                android:progressTint="@color/vitalis_error"
+                android:progressBackgroundTint="@color/vitalis_border" />
+
+            <LinearLayout
+                android:id="@+id/cardDiagnostico"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvPreguntaDiagnostico"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="¿Cual es el diagnostico mas probable?"
+                    android:textColor="@color/vitalis_text"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnDiag1"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/space_md"
+                    android:backgroundTint="@color/vitalis_surface_soft"
+                    android:textColor="@color/vitalis_text" />
+
+                <Button
+                    android:id="@+id/btnDiag2"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:backgroundTint="@color/vitalis_surface_soft"
+                    android:textColor="@color/vitalis_text" />
+
+                <Button
+                    android:id="@+id/btnDiag3"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:backgroundTint="@color/vitalis_surface_soft"
+                    android:textColor="@color/vitalis_text" />
+
+                <Button
+                    android:id="@+id/btnDiag4"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:backgroundTint="@color/vitalis_surface_soft"
+                    android:textColor="@color/vitalis_text" />
+
+                <TextView
+                    android:id="@+id/tvFeedbackDiagnostico"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_md"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layoutTrat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvPreguntaTratamiento"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="¿Cual seria la accion mas adecuada?"
+                    android:textColor="@color/vitalis_text"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnTrat1"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/space_md"
+                    android:backgroundTint="@color/vitalis_surface_soft"
+                    android:textColor="@color/vitalis_text" />
+
+                <Button
+                    android:id="@+id/btnTrat2"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:backgroundTint="@color/vitalis_surface_soft"
+                    android:textColor="@color/vitalis_text" />
+
+                <Button
+                    android:id="@+id/btnTrat3"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/space_sm"
+                    android:backgroundTint="@color/vitalis_surface_soft"
+                    android:textColor="@color/vitalis_text" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvFeedback"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:textColor="@color/vitalis_text"
+                android:textSize="15sp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnSiguiente"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/button_height"
+                android:layout_marginTop="@dimen/space_lg"
+                android:backgroundTint="@color/vitalis_primary"
+                android:text="SIGUIENTE CASO"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutNivel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_xl"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvNivelCompletado"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="NIVEL COMPLETADO\nFACIL"
+                android:textColor="@color/vitalis_primary_dark"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvNuevoNivel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:gravity="center"
+                android:text="Nuevo nivel: MEDIO"
+                android:textColor="@color/vitalis_text"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/tvEvaluacionNivel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:gravity="center"
+                android:text="Puntuacion actual: 0 pts"
+                android:textColor="@color/vitalis_text"
+                android:textSize="16sp" />
+
+            <ProgressBar
+                android:id="@+id/progressEvaluacionNivel"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:layout_marginTop="@dimen/space_md"
+                android:max="180"
+                android:progress="0"
+                android:progressTint="@color/vitalis_warning"
+                android:progressBackgroundTint="@color/vitalis_border" />
+
+            <Button
+                android:id="@+id/btnContinuarNivel"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/button_height"
+                android:layout_marginTop="@dimen/space_xl"
+                android:backgroundTint="@color/vitalis_primary"
+                android:text="CONTINUAR"
+                android:textColor="@color/white"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutResultado"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_xl"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="PARTIDA COMPLETADA"
+                android:textColor="@color/vitalis_muted"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvResultadoRango"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_sm"
+                android:gravity="center"
+                android:text="JEFE MEDICO"
+                android:textColor="@color/vitalis_primary_dark"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvResultadoFinal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_lg"
+                android:textColor="@color/vitalis_text"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/btnJugarDeNuevo"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/button_height"
+                android:layout_marginTop="@dimen/space_lg"
+                android:backgroundTint="@color/vitalis_primary"
+                android:text="JUGAR DE NUEVO"
+                android:textColor="@color/white"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
