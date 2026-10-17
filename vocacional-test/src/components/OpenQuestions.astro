@@ -1,0 +1,9 @@
+---
+import { blockF } from '../data/questions';
+---
+<section class="question-group" data-block="F">
+  <div class="section-heading"><p class="section-kicker">Sección F</p><h2>Con tus palabras</h2><p>Estas preguntas no tienen puntuación. Escribe lo que piensas ahora.</p></div>
+  <div class="open-grid">
+    {blockF.map(item => <label class="open-field"><span>{item.label}</span><textarea name={`open-${item.key}`} rows="3" maxlength={item.key === 'attraction' ? 4000 : 2000} required></textarea></label>)}
+  </div>
+</section>

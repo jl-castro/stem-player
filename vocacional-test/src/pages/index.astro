@@ -1,0 +1,44 @@
+---
+import Layout from '../layouts/Layout.astro';
+import QuestionGroup from '../components/QuestionGroup.astro';
+import TopicQuestion from '../components/TopicQuestion.astro';
+import OpenQuestions from '../components/OpenQuestions.astro';
+import { blockA, blockB, blockC, blockE, cAlternatives } from '../data/questions';
+---
+<Layout title="Orientación vocacional">
+  <main class="shell">
+    <header class="hero">
+      <h1>Orientación vocacional</h1>
+      <p class="hero-lede">Responde pensando en ti. No hay respuestas correctas o incorrectas: importa lo que realmente te atrae.</p>
+      <div class="progress-wrap"><div class="progress-meta"><span id="progress-label">0 de 88 ítems respondidos</span><span id="progress-percent">0%</span></div><div class="progress-track"><div id="progress-bar"></div></div></div>
+    </header>
+    <form id="vocational-form" novalidate>
+      <section class="intro-card"><h2>Antes de comenzar</h2><p>Lee cada pregunta y marca lo que más se acerca a ti, no lo que otras personas esperan. Las respuestas se guardan para una revisión posterior. Esta versión no muestra resultados.</p></section>
+      <section class="profile-card"><div class="section-heading compact"><h2>Datos del participante</h2><p>El nombre identifica la respuesta. El código es opcional y, si se omite, se generará uno interno.</p></div><div class="profile-grid"><label><span class="field-caption">Nombre</span><input name="name" required maxlength="160" autocomplete="name" /></label><label><span class="field-caption">Código de participante <span class="optional">opcional</span></span><input name="participantCode" maxlength="80" autocomplete="off" /></label><label><span class="field-caption">Edad <span class="optional">opcional</span></span><input name="age" type="number" min="5" max="120" /></label><label><span class="field-caption">Fecha</span><input name="responseDate" type="date" required /></label></div></section>
+      <QuestionGroup questions={blockA} kicker="Sección A" title="Lo que me interesa" subtitle="Elige cuánto te interesa cada actividad." />
+      <QuestionGroup questions={blockB} kicker="Sección B" title="Cómo me percibo actualmente" subtitle="Elige cuánto se parece a ti cada frase." />
+      <QuestionGroup questions={blockC} kicker="Sección C" title="¿Qué preferirías hacer?" subtitle="Lee la situación y elige lo que preferirías hacer." alternatives={cAlternatives} />
+      <TopicQuestion />
+      <QuestionGroup questions={blockE} kicker="Sección E" title="Pensando en mis estudios" subtitle="Elige la opción que mejor describe tu situación." />
+      <OpenQuestions />
+      <section id="review" class="review-card" hidden><div><span class="review-badge">LISTO PARA REVISAR</span><h2>Una última mirada</h2><p>Revisa que todas tus respuestas estén completas. Después podrás enviar tu hoja de respuestas.</p></div><div class="review-count" id="review-count">0/88</div></section>
+      <div class="form-actions"><p class="form-error" id="form-error" role="alert"></p><button class="primary-button" type="submit">Revisar y enviar</button></div>
+    </form>
+    <section id="success" class="success-card" hidden><div class="success-mark">✓</div><p class="eyebrow">Envío recibido</p><h2>Tu hoja de respuestas fue guardada.</h2><p>Gracias por completar el ejercicio. En esta versión todavía no se muestran resultados, perfiles ni recomendaciones.</p><button class="secondary-button" type="button" id="new-response">Completar otra respuesta</button></section>
+  </main>
+</Layout>
+<script>
+  const form = document.querySelector<HTMLFormElement>('#vocational-form');
+  const bar = document.querySelector<HTMLElement>('#progress-bar');
+  const label = document.querySelector<HTMLElement>('#progress-label');
+  const percent = document.querySelector<HTMLElement>('#progress-percent');
+  const error = document.querySelector<HTMLElement>('#form-error');
+  const review = document.querySelector<HTMLElement>('#review');
+  const reviewCount = document.querySelector<HTMLElement>('#review-count');
+  const requireElement = <T extends Element>(element: T | null): T => { if (!element) throw new Error('Elemento de interfaz no encontrado.'); return element; };
+  const updateProgress = () => { const answeredNames = new Set([...document.querySelectorAll<HTMLInputElement>('.question:not(.topic-question) input:checked')].map(input => input.name)); const topicsAnswered = document.querySelectorAll<HTMLInputElement>('input[name="topic"]:checked').length > 0 ? 1 : 0; const answered = answeredNames.size + topicsAnswered; const pct = Math.round(answered / 88 * 100); requireElement(bar).style.transform = `scaleX(${pct / 100})`; requireElement(label).textContent = `${answered} de 88 ítems respondidos`; requireElement(percent).textContent = `${pct}%`; requireElement(reviewCount).textContent = `${answered}/88`; requireElement(review).hidden = answered < 88; };
+  document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach(el => el.addEventListener('change', () => { if (el.name === 'topic' && el instanceof HTMLInputElement) { const selected = document.querySelectorAll<HTMLInputElement>('input[name="topic"]:checked'); if (selected.length > 3) el.checked = false; requireElement(document.querySelector<HTMLElement>('[data-topic-hint]')).textContent = `${document.querySelectorAll('input[name="topic"]:checked').length} de 3 seleccionados`; } updateProgress(); }));
+  requireElement(document.querySelector<HTMLInputElement>('input[name="responseDate"]')).value = new Date().toISOString().slice(0,10); updateProgress();
+  requireElement(form).addEventListener('submit', async (event) => { event.preventDefault(); const currentForm = requireElement(form); const errorBox = requireElement(error); errorBox.textContent = ''; if (!currentForm.reportValidity()) { errorBox.textContent = 'Completa los campos marcados antes de enviar.'; return; } const answers: Record<string,string> = {}; document.querySelectorAll<HTMLInputElement>('.question:not(.topic-question) input:checked').forEach(input => answers[input.name.replace('answer-','')] = input.value); const data = new FormData(currentForm); const payload = { participantCode: String(data.get('participantCode') || ''), name: String(data.get('name') || ''), age: String(data.get('age') || ''), responseDate: String(data.get('responseDate') || ''), submissionId: crypto.randomUUID(), answers, selectedTopics: [...document.querySelectorAll<HTMLInputElement>('input[name="topic"]:checked')].map(i => Number(i.value)), openAnswers: { career_now: String(data.get('open-career_now') || ''), career_other: String(data.get('open-career_other') || ''), attraction: String(data.get('open-attraction') || '') } }; const button = requireElement(currentForm.querySelector<HTMLButtonElement>('button[type="submit"]')); button.disabled = true; button.textContent = 'Guardando…'; try { const response = await fetch('/api/submit', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'No se pudo guardar.'); currentForm.hidden = true; requireElement(document.querySelector<HTMLElement>('#success')).hidden = false; window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (caught) { errorBox.textContent = caught instanceof Error ? caught.message : 'No se pudo guardar.'; button.disabled = false; button.textContent = 'Revisar y enviar'; } });
+  requireElement(document.querySelector<HTMLButtonElement>('#new-response')).addEventListener('click', () => window.location.reload());
+</script>

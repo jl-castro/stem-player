@@ -1,0 +1,11 @@
+name = "orientacion-vocacional"
+compatibility_date = "2026-10-17"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "orientacion-vocacional"
+database_id = "06608bb7-7925-4387-819c-0f100581fe3c"
+migrations_dir = "./migrations"
+

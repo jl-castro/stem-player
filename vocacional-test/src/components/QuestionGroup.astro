@@ -1,0 +1,38 @@
+---
+import type { Question } from '../data/questions';
+const { questions, title, subtitle, kicker, alternatives = {} } = Astro.props as {
+  questions: Question[];
+  title: string;
+  subtitle: string;
+  kicker: string;
+  alternatives?: Record<number, string[]>;
+};
+
+const choicesFor = (question: Question) => {
+  const texts = alternatives[question.number];
+  if (texts) return texts.map((label, index) => ({ value: String.fromCharCode(65 + index), label }));
+  return question.choices ?? [];
+};
+---
+<section class="question-group" data-block={kicker}>
+  <div class="section-heading">
+    <p class="section-kicker">{kicker}</p>
+    <h2>{title}</h2>
+    <p>{subtitle}</p>
+  </div>
+  <div class="questions">
+    {questions.map((question) => (
+      <fieldset class="question" data-question={question.number}>
+        <legend><span class="question-number">{String(question.number).padStart(2, '0')}</span><span>{question.prompt}</span></legend>
+        <div class:list={["choice-row", { 'statement-row': question.kind === 'letter', 'scale-row': question.kind === 'scale' }]}>
+          {choicesFor(question).map((choice) => (
+            <label class="choice">
+              <input type="radio" name={`answer-${question.number}`} value={choice.value} required />
+              <span class="choice-mark">{choice.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    ))}
+  </div>
+</section>

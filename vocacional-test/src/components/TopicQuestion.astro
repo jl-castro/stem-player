@@ -1,0 +1,13 @@
+---
+import { topics } from '../data/questions';
+---
+<section class="question-group" data-block="D">
+  <div class="section-heading"><p class="section-kicker">Sección D</p><h2>Temas que despiertan mi curiosidad</h2><p>Ítem 81. Elige hasta tres temas.</p></div>
+  <fieldset class="question topic-question">
+    <legend><span class="question-number">81</span><span>Sin pensar todavía en una carrera específica, marca hasta tres temas que despierten tu curiosidad.</span></legend>
+    <div class="topic-grid">
+      {topics.map((topic, i) => <label class="topic-choice"><input type="checkbox" name="topic" value={i+1} /><span class="topic-number">{i+1}</span><span>{topic}</span></label>)}
+    </div>
+    <p class="field-hint" data-topic-hint>0 de 3 seleccionados</p>
+  </fieldset>
+</section>
